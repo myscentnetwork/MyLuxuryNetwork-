@@ -1,0 +1,577 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============== SIZES ==============
+model Size {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  status    String   @default("active") // active | inactive
+  createdAt DateTime @default(now())
+
+  categories CategorySize[]
+  products   ProductSize[]
+}
+
+// ============== CATEGORIES ==============
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  logo      String?  // Cloudinary URL
+  status    String   @default("active") // active | inactive
+  createdAt DateTime @default(now())
+
+  sizes       CategorySize[]
+  brands      BrandCategory[]
+  products    Product[]
+  vendors     VendorCategory[]
+  resellers   ResellerCategory[]
+  wholesalers WholesalerCategory[]
+  retailers   RetailerCategory[]
+}
+
+model CategorySize {
+  id         String   @id @default(cuid())
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId String
+  size       Size     @relation(fields: [sizeId], references: [id], onDelete: Cascade)
+  sizeId     String
+
+  @@unique([categoryId, sizeId])
+}
+
+// ============== BRANDS ==============
+model Brand {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logo      String?  // Cloudinary URL
+  status    String   @default("active") // active | inactive
+  createdAt DateTime @default(now())
+
+  categories BrandCategory[]
+  products   Product[]
+}
+
+model BrandCategory {
+  id         String   @id @default(cuid())
+  brand      Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brandId    String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId String
+
+  @@unique([brandId, categoryId])
+}
+
+// ============== PRODUCTS ==============
+model Product {
+  id          String   @id @default(cuid())
+  name        String?
+  sku         String   @unique
+  description String?
+  video       String?  // Cloudinary URL
+  isFeatured  Boolean  @default(false)
+  isNewArrival Boolean @default(false)
+  isBestSeller Boolean @default(false)
+  status      String   @default("out_of_stock") // out_of_stock | in_stock (updated via purchase bills)
+
+  // Stock & Pricing (updated via purchase bills)
+  stockQuantity  Int     @default(0)
+  mrp            Float   @default(0)  // Maximum Retail Price
+  costPrice      Float   @default(0)  // Last purchase cost price (average)
+  wholesalePrice Float   @default(0)  // Selling price for wholesalers
+  resellerPrice  Float   @default(0)  // Selling price for resellers
+  retailPrice    Float   @default(0)  // Retail selling price
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId String
+  brand      Brand    @relation(fields: [brandId], references: [id])
+  brandId    String
+
+  sizes         ProductSize[]
+  images        ProductImage[]
+  tags          ProductTag[]
+  colours       ProductColour[]
+  purchaseItems PurchaseItem[]
+  resellerProducts   ResellerProduct[]
+  wholesalerProducts WholesalerProduct[]
+  retailerProducts   RetailerProduct[]
+}
+
+model ProductSize {
+  id        String  @id @default(cuid())
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  size      Size    @relation(fields: [sizeId], references: [id], onDelete: Cascade)
+  sizeId    String
+
+  @@unique([productId, sizeId])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  url       String  // Cloudinary URL
+  order     Int     @default(0)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+}
+
+model ProductTag {
+  id        String  @id @default(cuid())
+  name      String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  @@unique([productId, name])
+}
+
+model ProductColour {
+  id        String  @id @default(cuid())
+  name      String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  @@unique([productId, name])
+}
+
+// ============== VENDORS ==============
+model Vendor {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  city      String?
+  status    String   @default("active") // active | inactive
+  createdAt DateTime @default(now())
+
+  categories    VendorCategory[]
+  purchaseBills PurchaseBill[]
+}
+
+model VendorCategory {
+  id         String   @id @default(cuid())
+  vendor     Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  vendorId   String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId String
+
+  @@unique([vendorId, categoryId])
+}
+
+// ============== RESELLERS ==============
+model Reseller {
+  id             String   @id @default(cuid())
+  username       String?  @unique // Store URL username (e.g., demostore)
+  name           String
+  contactNumber  String?
+  whatsappNumber String?
+  shopName       String?
+  email          String?  @unique
+  password       String?  // Hashed password for self-registered resellers
+  storeAddress   String?
+  customDomain   String?
+  status         String   @default("inactive") // active | inactive (becomes active on first purchase or manual activation)
+  registrationStatus String @default("approved") // pending | approved | rejected (for self-registration)
+  createdAt      DateTime @default(now())
+
+  // Password reset
+  resetToken     String?  @unique
+  resetTokenExpiry DateTime?
+
+  // Store Branding
+  storeLogo      String?  // Cloudinary URL
+  storeBanner    String?  // Cloudinary URL
+  tagline        String?  // Store tagline
+
+  // Social Links
+  instagramHandle String?
+  facebookHandle  String?
+  youtubeHandle   String?
+  telegramHandle  String?
+
+  // Auto-import settings
+  autoImportEnabled    Boolean @default(false)
+  autoImportMarkupType String? // percentage | fixed
+  autoImportMarkupValue Float?
+
+  orderBills         OrderBill[]
+  importedProducts   ResellerProduct[]
+  selectedCategories ResellerCategory[]
+}
+
+// ============== WHOLESALERS ==============
+model Wholesaler {
+  id             String   @id @default(cuid())
+  username       String?  @unique // URL username
+  name           String
+  companyName    String?
+  contactNumber  String?
+  whatsappNumber String?
+  email          String?  @unique
+  password       String?  // Hashed password for self-registered wholesalers
+  address        String?
+  city           String?
+  gstNumber      String?  // GST/Tax registration number
+  status         String   @default("inactive") // active | inactive (becomes active on first purchase or manual activation)
+  registrationStatus String @default("approved") // pending | approved | rejected
+  createdAt      DateTime @default(now())
+
+  // Password reset
+  resetToken     String?  @unique
+  resetTokenExpiry DateTime?
+
+  // Store Branding
+  storeLogo      String?  // Cloudinary URL
+  storeBanner    String?  // Cloudinary URL
+  tagline        String?  // Store tagline
+
+  // Social Links
+  instagramHandle String?
+  facebookHandle  String?
+  youtubeHandle   String?
+  telegramHandle  String?
+
+  // Auto-import settings
+  autoImportEnabled    Boolean @default(false)
+  autoImportMarkupType String? // percentage | fixed
+  autoImportMarkupValue Float?
+
+  orderBills         WholesaleOrderBill[]
+  selectedCategories WholesalerCategory[]
+  importedProducts   WholesalerProduct[]
+}
+
+// ============== WHOLESALER SELECTED CATEGORIES ==============
+model WholesalerCategory {
+  id           String     @id @default(cuid())
+  wholesaler   Wholesaler @relation(fields: [wholesalerId], references: [id], onDelete: Cascade)
+  wholesalerId String
+  category     Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId   String
+  createdAt    DateTime   @default(now())
+
+  @@unique([wholesalerId, categoryId])
+}
+
+// ============== RETAILERS (RETAIL CUSTOMERS) ==============
+model Retailer {
+  id             String   @id @default(cuid())
+  username       String?  @unique // URL username
+  name           String
+  contactNumber  String?
+  whatsappNumber String?
+  email          String?  @unique
+  password       String?  // Hashed password for self-registered retailers
+  address        String?
+  city           String?
+  status         String   @default("inactive") // active | inactive (becomes active on first purchase or manual activation)
+  registrationStatus String @default("approved") // pending | approved | rejected
+  createdAt      DateTime @default(now())
+
+  // Password reset
+  resetToken     String?  @unique
+  resetTokenExpiry DateTime?
+
+  // Store Branding
+  storeLogo      String?  // Cloudinary URL
+  storeBanner    String?  // Cloudinary URL
+  tagline        String?  // Store tagline
+
+  // Social Links
+  instagramHandle String?
+  facebookHandle  String?
+  youtubeHandle   String?
+  telegramHandle  String?
+
+  // Auto-import settings
+  autoImportEnabled    Boolean @default(false)
+  autoImportMarkupType String? // percentage | fixed
+  autoImportMarkupValue Float?
+
+  orderBills         RetailOrderBill[]
+  selectedCategories RetailerCategory[]
+  importedProducts   RetailerProduct[]
+}
+
+// ============== RETAILER SELECTED CATEGORIES ==============
+model RetailerCategory {
+  id         String   @id @default(cuid())
+  retailer   Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  retailerId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId String
+  createdAt  DateTime @default(now())
+
+  @@unique([retailerId, categoryId])
+}
+
+// ============== RETAIL ORDER BILLS ==============
+model RetailOrderBill {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @unique
+  date          String   // YYYY-MM-DD
+  time          String?  // HH:MM
+  subtotal      Float    @default(0)
+  totalDiscount Float    @default(0)
+  grandTotal    Float    @default(0)
+  status        String   @default("pending") // pending | paid | cancelled
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  retailer   Retailer @relation(fields: [retailerId], references: [id])
+  retailerId String
+
+  items RetailOrderItem[]
+}
+
+model RetailOrderItem {
+  id            String @id @default(cuid())
+  quantity      Int
+  unitPrice     Float  // Retail price
+  discountType  String @default("none") // none | percentage | amount
+  discountValue Float  @default(0)
+  discountAmount Float @default(0)
+  total         Float
+
+  // Snapshot fields
+  productSku   String
+  productName  String
+  productImage String?
+
+  orderBill   RetailOrderBill @relation(fields: [orderBillId], references: [id], onDelete: Cascade)
+  orderBillId String
+
+  productId String
+}
+
+// ============== WHOLESALE ORDER BILLS ==============
+model WholesaleOrderBill {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @unique
+  date          String   // YYYY-MM-DD
+  time          String?  // HH:MM
+  subtotal      Float    @default(0)
+  totalDiscount Float    @default(0)
+  grandTotal    Float    @default(0)
+  status        String   @default("pending") // pending | paid | cancelled
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  wholesaler   Wholesaler @relation(fields: [wholesalerId], references: [id])
+  wholesalerId String
+
+  items WholesaleOrderItem[]
+}
+
+model WholesaleOrderItem {
+  id            String @id @default(cuid())
+  quantity      Int
+  unitPrice     Float  // Wholesale price
+  discountType  String @default("none") // none | percentage | amount
+  discountValue Float  @default(0)
+  discountAmount Float @default(0)
+  total         Float
+
+  // Snapshot fields
+  productSku   String
+  productName  String
+  productImage String?
+
+  orderBill   WholesaleOrderBill @relation(fields: [orderBillId], references: [id], onDelete: Cascade)
+  orderBillId String
+
+  productId String
+}
+
+// ============== RESELLER SELECTED CATEGORIES ==============
+model ResellerCategory {
+  id         String   @id @default(cuid())
+  reseller   Reseller @relation(fields: [resellerId], references: [id], onDelete: Cascade)
+  resellerId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId String
+  createdAt  DateTime @default(now())
+
+  @@unique([resellerId, categoryId])
+}
+
+// ============== RESELLER IMPORTED PRODUCTS ==============
+model ResellerProduct {
+  id          String   @id @default(cuid())
+  reseller    Reseller @relation(fields: [resellerId], references: [id], onDelete: Cascade)
+  resellerId  String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId   String
+
+  // Custom pricing (optional - reseller can set their own prices)
+  sellingPrice Float?
+  markupType   String? // percentage | fixed
+  markupValue  Float?
+  isAutoImported Boolean @default(false) // Track if imported via auto-import
+
+  // Display settings
+  isVisible   Boolean  @default(true)
+  displayOrder Int     @default(0)
+
+  createdAt   DateTime @default(now())
+
+  @@unique([resellerId, productId])
+}
+
+// ============== WHOLESALER IMPORTED PRODUCTS ==============
+model WholesalerProduct {
+  id           String     @id @default(cuid())
+  wholesaler   Wholesaler @relation(fields: [wholesalerId], references: [id], onDelete: Cascade)
+  wholesalerId String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId    String
+
+  // Custom pricing (optional - wholesaler can set their own prices)
+  sellingPrice Float?
+  markupType   String? // percentage | fixed
+  markupValue  Float?
+  isAutoImported Boolean @default(false) // Track if imported via auto-import
+
+  // Display settings
+  isVisible    Boolean  @default(true)
+  displayOrder Int      @default(0)
+
+  createdAt    DateTime @default(now())
+
+  @@unique([wholesalerId, productId])
+}
+
+// ============== RETAILER IMPORTED PRODUCTS ==============
+model RetailerProduct {
+  id          String   @id @default(cuid())
+  retailer    Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  retailerId  String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId   String
+
+  // Custom pricing (optional - retailer can set their own prices)
+  sellingPrice Float?
+  markupType   String? // percentage | fixed
+  markupValue  Float?
+  isAutoImported Boolean @default(false) // Track if imported via auto-import
+
+  // Display settings
+  isVisible   Boolean  @default(true)
+  displayOrder Int     @default(0)
+
+  createdAt   DateTime @default(now())
+
+  @@unique([retailerId, productId])
+}
+
+// ============== ORDER BILLS ==============
+model OrderBill {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @unique
+  date          String   // YYYY-MM-DD
+  time          String?  // HH:MM
+  subtotal      Float    @default(0)
+  totalDiscount Float    @default(0)
+  grandTotal    Float    @default(0)
+  status        String   @default("pending") // pending | paid | cancelled
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  reseller   Reseller @relation(fields: [resellerId], references: [id])
+  resellerId String
+
+  items OrderItem[]
+}
+
+model OrderItem {
+  id            String @id @default(cuid())
+  quantity      Int
+  unitPrice     Float
+  discountType  String @default("none") // none | percentage | amount
+  discountValue Float  @default(0)
+  discountAmount Float @default(0)
+  total         Float
+
+  // Snapshot fields (preserved even if product changes)
+  productSku   String
+  productName  String
+  productImage String?
+
+  orderBill   OrderBill @relation(fields: [orderBillId], references: [id], onDelete: Cascade)
+  orderBillId String
+
+  productId String
+}
+
+// ============== PURCHASE BILLS ==============
+model PurchaseBill {
+  id                 String   @id @default(cuid())
+  billNumber         String   @unique
+  date               String   // YYYY-MM-DD
+  time               String?  // HH:MM
+  shippingCharges    Float    @default(0)  // Distributed equally among items
+  miscellaneous      Float    @default(0)  // Distributed equally among items
+  originalBox        Float    @default(0)  // Distributed equally among items
+  totalAmount        Float    @default(0)
+  paidAmount         Float    @default(0)
+  balanceAmount      Float    @default(0)
+  paymentMode        String?  // cash | bank_transfer | upi | cheque | credit
+  transactionDetails String?  // Transaction ID, Cheque No, Reference, etc.
+  status             String   @default("pending") // pending | paid | cancelled
+  createdAt          DateTime @default(now())
+
+  vendor   Vendor @relation(fields: [vendorId], references: [id])
+  vendorId String
+
+  items    PurchaseItem[]
+  payments PurchasePayment[]
+}
+
+model PurchasePayment {
+  id                 String   @id @default(cuid())
+  amount             Float
+  paymentMode        String   // cash | bank_transfer | upi | cheque | credit
+  transactionDetails String?  // Transaction ID, Cheque No, Reference, etc.
+  notes              String?
+  paymentDate        String   // YYYY-MM-DD
+  paymentTime        String?  // HH:MM
+  createdAt          DateTime @default(now())
+
+  purchaseBill   PurchaseBill @relation(fields: [purchaseBillId], references: [id], onDelete: Cascade)
+  purchaseBillId String
+}
+
+model PurchaseItem {
+  id       String @id @default(cuid())
+  quantity Int
+  costPrice Float
+  distributedCost Float?   @default(0)  // Extra charges distributed per item
+  finalCostPrice  Float?   @default(0)  // costPrice + distributedCost
+  total     Float
+
+  // Snapshot fields (preserved even if product changes)
+  productSku   String
+  productName  String
+  productImage String?
+
+  purchaseBill   PurchaseBill @relation(fields: [purchaseBillId], references: [id], onDelete: Cascade)
+  purchaseBillId String
+
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+}
+
+// ============== APP SETTINGS ==============
+model AppSettings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   // JSON string for complex values
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+  --luxury-gold: #D4AF37;
+  --luxury-black: #0A0A0A;
+  --luxury-dark: #1A1A1A;
+  --luxury-gray: #2A2A2A;
+  --luxury-light: #F5F5F5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--luxury-black);
+  color: var(--luxury-light);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--luxury-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--luxury-gray);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--luxury-gold);
+}
+
+/* Gold accent animations */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.gold-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--luxury-gold) 0%,
+    #F4CF67 25%,
+    var(--luxury-gold) 50%,
+    #F4CF67 75%,
+    var(--luxury-gold) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* Product card hover effects */
+.product-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.product-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(212, 175, 55, 0.15);
+}
+
+/* Image zoom on hover */
+.product-image-container {
+  overflow: hidden;
+}
+
+.product-image-container img {
+  transition: transform 0.5s ease;
+}
+
+.product-image-container:hover img {
+  transform: scale(1.1);
+}
+
+/* Button styles */
+.btn-gold {
+  @apply bg-luxury-gold text-luxury-black font-semibold px-6 py-3 rounded transition-all duration-300;
+}
+
+.btn-gold:hover {
+  @apply bg-opacity-90 shadow-lg;
+  box-shadow: 0 4px 20px rgba(212, 175, 55, 0.4);
+}
+
+.btn-outline-gold {
+  @apply border-2 border-luxury-gold text-luxury-gold px-6 py-3 rounded transition-all duration-300;
+}
+
+.btn-outline-gold:hover {
+  @apply bg-luxury-gold text-luxury-black;
+}
+
+/* Luxury divider */
+.luxury-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--luxury-gold) 50%,
+    transparent 100%
+  );
+}

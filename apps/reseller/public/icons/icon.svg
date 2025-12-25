@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="64" fill="#0a0a0a"/>
+  <rect x="48" y="48" width="416" height="416" rx="48" fill="#1a1a1a" stroke="#D4AF37" stroke-width="8"/>
+  <text x="256" y="300" font-family="Arial, sans-serif" font-size="280" font-weight="bold" fill="#D4AF37" text-anchor="middle">M</text>
+  <text x="256" y="420" font-family="Arial, sans-serif" font-size="60" fill="#888" text-anchor="middle">RESELLER</text>
+</svg>
