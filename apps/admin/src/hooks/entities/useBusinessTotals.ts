@@ -8,11 +8,28 @@ interface BusinessStats {
   orderCount: number;
 }
 
+interface InvestmentStats {
+  total: number;
+  paid: number;
+  pending: number;
+  billCount: number;
+}
+
+interface StockStats {
+  costValue: number;
+  retailValue: number;
+  quantity: number;
+  potentialProfit: number;
+}
+
 interface BusinessTotals {
   wholesaler: BusinessStats;
   reseller: BusinessStats;
   retail: BusinessStats;
   grandTotal: number;
+  investment: InvestmentStats;
+  stock: StockStats;
+  totalSales: number;
 }
 
 export function useBusinessTotals() {
@@ -21,6 +38,9 @@ export function useBusinessTotals() {
     reseller: { totalBusiness: 0, paidBusiness: 0, orderCount: 0 },
     retail: { totalBusiness: 0, paidBusiness: 0, orderCount: 0 },
     grandTotal: 0,
+    investment: { total: 0, paid: 0, pending: 0, billCount: 0 },
+    stock: { costValue: 0, retailValue: 0, quantity: 0, potentialProfit: 0 },
+    totalSales: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

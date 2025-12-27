@@ -97,8 +97,8 @@ export default function EditRetailer({ params }: { params: Promise<{ id: string 
       });
       setFetching(false);
     } else if (!fetching) {
-      // Retailer not found after loading
-      setError("Retail customer not found");
+      // Customer not found after loading
+      setError("Customer not found");
     }
   }, [retailers, id, fetching]);
 
@@ -214,7 +214,7 @@ export default function EditRetailer({ params }: { params: Promise<{ id: string 
       await updateRetailer(id, formData);
       router.push("/admin/dashboard/retailers");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update retail customer");
+      setError(err instanceof Error ? err.message : "Failed to update customer");
     } finally {
       setLoading(false);
     }
@@ -264,7 +264,7 @@ export default function EditRetailer({ params }: { params: Promise<{ id: string 
 
   if (fetching) {
     return (
-      <AdminLayout title="Edit Retail Customer">
+      <AdminLayout title="Edit Customer">
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-luxury-gold"></div>
         </div>
@@ -273,7 +273,7 @@ export default function EditRetailer({ params }: { params: Promise<{ id: string 
   }
 
   return (
-    <AdminLayout title="Edit Retail Customer">
+    <AdminLayout title="Edit Customer">
       <div className="max-w-3xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
@@ -462,7 +462,7 @@ export default function EditRetailer({ params }: { params: Promise<{ id: string 
               disabled={loading || hasValidationErrors || isValidating}
               className="flex-1 bg-luxury-gold hover:bg-yellow-600 text-black font-semibold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Updating..." : isValidating ? "Validating..." : "Update Retail Customer"}
+              {loading ? "Updating..." : isValidating ? "Validating..." : "Update Customer"}
             </button>
             <button
               type="button"

@@ -72,6 +72,51 @@ export default function PortalSettings() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
 
+  // Validation functions
+  const validatePhone = (phone: string) => {
+    if (!phone) return false;
+    const cleaned = phone.replace(/[\s\-\(\)\+]/g, "");
+    return /^\d{10,12}$/.test(cleaned);
+  };
+
+  const validateUsername = (username: string) => {
+    return username.length >= 3 && /^[a-z0-9]+$/.test(username);
+  };
+
+  const validateShopName = (name: string) => {
+    return name.trim().length >= 2;
+  };
+
+  const validateSocialHandle = (handle: string) => {
+    if (!handle) return null; // Optional field
+    return /^[a-zA-Z0-9_.]+$/.test(handle);
+  };
+
+  const validateTagline = (tagline: string) => {
+    if (!tagline) return null; // Optional field
+    return tagline.trim().length >= 3;
+  };
+
+  const validateCity = (city: string) => {
+    if (!city) return null; // Optional field
+    return city.trim().length >= 2;
+  };
+
+  const validateAddress = (address: string) => {
+    if (!address) return null; // Optional field
+    return address.trim().length >= 5;
+  };
+
+  // Validation indicator component
+  const ValidationIcon = ({ isValid }: { isValid: boolean | null }) => {
+    if (isValid === null) return null;
+    return isValid ? (
+      <FaCheck className="w-4 h-4 text-green-500" />
+    ) : (
+      <FaTimes className="w-4 h-4 text-red-500" />
+    );
+  };
+
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -407,30 +452,40 @@ export default function PortalSettings() {
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
                   {userType === "wholesaler" ? "Company Name" : "Shop Name"}
                 </label>
-                <input
-                  type="text"
-                  name={userType === "wholesaler" ? "companyName" : "shopName"}
-                  value={userType === "wholesaler" ? formData.companyName : formData.shopName}
-                  onChange={handleChange}
-                  placeholder={userType === "wholesaler" ? "My Company Ltd" : "My Luxury Store"}
-                  className="w-full px-4 py-3 bg-luxury-darker text-white placeholder-neutral-500 rounded-lg border border-luxury-border focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    name={userType === "wholesaler" ? "companyName" : "shopName"}
+                    value={userType === "wholesaler" ? formData.companyName : formData.shopName}
+                    onChange={handleChange}
+                    placeholder={userType === "wholesaler" ? "My Company Ltd" : "My Luxury Store"}
+                    className="w-full px-4 py-3 pr-10 bg-luxury-darker text-white placeholder-neutral-500 rounded-lg border border-luxury-border focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <ValidationIcon isValid={validateShopName(userType === "wholesaler" ? formData.companyName : formData.shopName)} />
+                  </div>
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
                   Tagline
                 </label>
-                <input
-                  type="text"
-                  name="tagline"
-                  value={formData.tagline}
-                  onChange={handleChange}
-                  placeholder="Your store's tagline or slogan"
-                  className="w-full px-4 py-3 bg-luxury-darker text-white placeholder-neutral-500 rounded-lg border border-luxury-border focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="tagline"
+                    value={formData.tagline}
+                    onChange={handleChange}
+                    placeholder="Your store's tagline or slogan"
+                    className="w-full px-4 py-3 pr-10 bg-luxury-darker text-white placeholder-neutral-500 rounded-lg border border-luxury-border focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <ValidationIcon isValid={validateTagline(formData.tagline)} />
+                  </div>
+                </div>
                 <p className="text-xs text-neutral-500 mt-1">
-                  Displayed under your store name
+                  Displayed under your store name (optional)
                 </p>
               </div>
 
@@ -438,14 +493,19 @@ export default function PortalSettings() {
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
                   Contact Number
                 </label>
-                <input
-                  type="text"
-                  name="contactNumber"
-                  value={formData.contactNumber}
-                  onChange={handleChange}
-                  placeholder="+91 9876543210"
-                  className="w-full px-4 py-3 bg-luxury-darker text-white placeholder-neutral-500 rounded-lg border border-luxury-border focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="contactNumber"
+                    value={formData.contactNumber}
+                    onChange={handleChange}
+                    placeholder="+91 9876543210"
+                    className="w-full px-4 py-3 pr-10 bg-luxury-darker text-white placeholder-neutral-500 rounded-lg border border-luxury-border focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <ValidationIcon isValid={formData.contactNumber ? validatePhone(formData.contactNumber) : null} />
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -453,14 +513,19 @@ export default function PortalSettings() {
                   <FaWhatsapp className="w-4 h-4 inline mr-2 text-green-500" />
                   WhatsApp Number
                 </label>
-                <input
-                  type="text"
-                  name="whatsappNumber"
-                  value={formData.whatsappNumber}
-                  onChange={handleChange}
-                  placeholder="+91 9876543210"
-                  className="w-full px-4 py-3 bg-luxury-darker text-white placeholder-neutral-500 rounded-lg border border-luxury-border focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="whatsappNumber"
+                    value={formData.whatsappNumber}
+                    onChange={handleChange}
+                    placeholder="+91 9876543210"
+                    className="w-full px-4 py-3 pr-10 bg-luxury-darker text-white placeholder-neutral-500 rounded-lg border border-luxury-border focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <ValidationIcon isValid={formData.whatsappNumber ? validatePhone(formData.whatsappNumber) : null} />
+                  </div>
+                </div>
                 <p className="text-xs text-neutral-500 mt-1">
                   Customers will contact you on this number
                 </p>
@@ -470,28 +535,38 @@ export default function PortalSettings() {
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
                   City
                 </label>
-                <input
-                  type="text"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleChange}
-                  placeholder="City"
-                  className="w-full px-4 py-3 bg-luxury-darker text-white placeholder-neutral-500 rounded-lg border border-luxury-border focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="city"
+                    value={formData.city}
+                    onChange={handleChange}
+                    placeholder="City"
+                    className="w-full px-4 py-3 pr-10 bg-luxury-darker text-white placeholder-neutral-500 rounded-lg border border-luxury-border focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <ValidationIcon isValid={validateCity(formData.city)} />
+                  </div>
+                </div>
               </div>
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
                   Address
                 </label>
-                <textarea
-                  name={userType === "reseller" ? "storeAddress" : "address"}
-                  value={userType === "reseller" ? formData.storeAddress : formData.address}
-                  onChange={handleChange}
-                  placeholder="Your store/business address"
-                  rows={2}
-                  className="w-full px-4 py-3 bg-luxury-darker text-white placeholder-neutral-500 rounded-lg border border-luxury-border focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
-                />
+                <div className="relative">
+                  <textarea
+                    name={userType === "reseller" ? "storeAddress" : "address"}
+                    value={userType === "reseller" ? formData.storeAddress : formData.address}
+                    onChange={handleChange}
+                    placeholder="Your store/business address"
+                    rows={2}
+                    className="w-full px-4 py-3 pr-10 bg-luxury-darker text-white placeholder-neutral-500 rounded-lg border border-luxury-border focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+                  />
+                  <div className="absolute right-3 top-3">
+                    <ValidationIcon isValid={validateAddress(userType === "reseller" ? formData.storeAddress : formData.address)} />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -526,6 +601,9 @@ export default function PortalSettings() {
                     placeholder="yourhandle"
                     className="flex-1 px-4 py-3 bg-transparent text-white placeholder-neutral-500 focus:outline-none"
                   />
+                  <div className="px-3">
+                    <ValidationIcon isValid={validateSocialHandle(formData.instagramHandle)} />
+                  </div>
                 </div>
               </div>
 
@@ -546,6 +624,9 @@ export default function PortalSettings() {
                     placeholder="yourpage"
                     className="flex-1 px-4 py-3 bg-transparent text-white placeholder-neutral-500 focus:outline-none"
                   />
+                  <div className="px-3">
+                    <ValidationIcon isValid={validateSocialHandle(formData.facebookHandle)} />
+                  </div>
                 </div>
               </div>
 
@@ -566,6 +647,9 @@ export default function PortalSettings() {
                     placeholder="yourchannel"
                     className="flex-1 px-4 py-3 bg-transparent text-white placeholder-neutral-500 focus:outline-none"
                   />
+                  <div className="px-3">
+                    <ValidationIcon isValid={validateSocialHandle(formData.youtubeHandle)} />
+                  </div>
                 </div>
               </div>
 
@@ -586,6 +670,9 @@ export default function PortalSettings() {
                     placeholder="yourhandle"
                     className="flex-1 px-4 py-3 bg-transparent text-white placeholder-neutral-500 focus:outline-none"
                   />
+                  <div className="px-3">
+                    <ValidationIcon isValid={validateSocialHandle(formData.telegramHandle)} />
+                  </div>
                 </div>
               </div>
 

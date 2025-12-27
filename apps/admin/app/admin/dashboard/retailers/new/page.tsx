@@ -160,7 +160,7 @@ export default function NewRetailer() {
       await createRetailer(formData);
       router.push("/admin/dashboard/retailers");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create retail customer");
+      setError(err instanceof Error ? err.message : "Failed to create customer");
     } finally {
       setLoading(false);
     }
@@ -209,7 +209,7 @@ export default function NewRetailer() {
   };
 
   return (
-    <AdminLayout title="Add Retail Customer">
+    <AdminLayout title="Add Customer">
       <div className="max-w-3xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
@@ -398,7 +398,7 @@ export default function NewRetailer() {
               disabled={loading || hasValidationErrors || isValidating}
               className="flex-1 bg-luxury-gold hover:bg-yellow-600 text-black font-semibold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Creating..." : isValidating ? "Validating..." : "Create Retail Customer"}
+              {loading ? "Creating..." : isValidating ? "Validating..." : "Create Customer"}
             </button>
             <button
               type="button"

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import bcrypt from "bcryptjs";
 
 export async function GET() {
   try {
@@ -227,6 +228,166 @@ export async function PUT(request: NextRequest) {
     console.error("Error updating user:", error);
     return NextResponse.json(
       { error: "Failed to update user" },
+      { status: 500 }
+    );
+  }
+}
+
+// POST - Create a new user
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const {
+      userType,
+      name,
+      username,
+      email,
+      password,
+      contactNumber,
+      whatsappNumber,
+      companyName,
+      shopName,
+      address,
+      city,
+      status = "active",
+    } = body;
+
+    // Validate required fields
+    if (!userType || !name) {
+      return NextResponse.json(
+        { error: "User type and name are required" },
+        { status: 400 }
+      );
+    }
+
+    // Check if email already exists
+    if (email) {
+      const existingWholesaler = await prisma.wholesaler.findUnique({ where: { email } });
+      const existingReseller = await prisma.reseller.findUnique({ where: { email } });
+      const existingRetailer = await prisma.retailer.findUnique({ where: { email } });
+
+      if (existingWholesaler || existingReseller || existingRetailer) {
+        return NextResponse.json(
+          { error: "Email already in use" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Check if username already exists
+    if (username) {
+      const existingWholesaler = await prisma.wholesaler.findUnique({ where: { username } });
+      const existingReseller = await prisma.reseller.findUnique({ where: { username } });
+      const existingRetailer = await prisma.retailer.findUnique({ where: { username } });
+
+      if (existingWholesaler || existingReseller || existingRetailer) {
+        return NextResponse.json(
+          { error: "Username already in use" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Hash password if provided
+    const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+
+    let newUser;
+
+    if (userType === "wholesaler") {
+      newUser = await prisma.wholesaler.create({
+        data: {
+          name,
+          username: username || null,
+          email: email || null,
+          password: hashedPassword,
+          contactNumber: contactNumber || null,
+          whatsappNumber: whatsappNumber || null,
+          companyName: companyName || null,
+          address: address || null,
+          city: city || null,
+          status,
+          registrationStatus: "approved",
+        },
+      });
+    } else if (userType === "reseller") {
+      newUser = await prisma.reseller.create({
+        data: {
+          name,
+          username: username || null,
+          email: email || null,
+          password: hashedPassword,
+          contactNumber: contactNumber || null,
+          whatsappNumber: whatsappNumber || null,
+          shopName: shopName || null,
+          storeAddress: address || null,
+          status,
+          registrationStatus: "approved",
+        },
+      });
+    } else if (userType === "retailer") {
+      newUser = await prisma.retailer.create({
+        data: {
+          name,
+          username: username || null,
+          email: email || null,
+          password: hashedPassword,
+          contactNumber: contactNumber || null,
+          whatsappNumber: whatsappNumber || null,
+          address: address || null,
+          city: city || null,
+          status,
+          registrationStatus: "approved",
+        },
+      });
+    } else {
+      return NextResponse.json(
+        { error: "Invalid user type" },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ success: true, user: newUser });
+  } catch (error) {
+    console.error("Error creating user:", error);
+    return NextResponse.json(
+      { error: "Failed to create user" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - Delete a user
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId");
+    const userType = searchParams.get("userType");
+
+    if (!userId || !userType) {
+      return NextResponse.json(
+        { error: "User ID and type are required" },
+        { status: 400 }
+      );
+    }
+
+    if (userType === "wholesaler") {
+      await prisma.wholesaler.delete({ where: { id: userId } });
+    } else if (userType === "reseller") {
+      await prisma.reseller.delete({ where: { id: userId } });
+    } else if (userType === "retailer") {
+      await prisma.retailer.delete({ where: { id: userId } });
+    } else {
+      return NextResponse.json(
+        { error: "Invalid user type" },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    return NextResponse.json(
+      { error: "Failed to delete user" },
       { status: 500 }
     );
   }

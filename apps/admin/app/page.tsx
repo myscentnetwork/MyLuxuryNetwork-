@@ -26,11 +26,21 @@ export default function LandingPage() {
     contactNumber: "",
     password: "",
     confirmPassword: "",
+    userType: "reseller" as "wholesaler" | "reseller" | "retailer",
   });
 
   // Validation state
   const [validating, setValidating] = useState({ email: false, phone: false });
   const [fieldErrors, setFieldErrors] = useState({ email: "", contactNumber: "" });
+
+  // Get API endpoint based on user type
+  const getApiEndpoint = (userType: string) => {
+    switch (userType) {
+      case "wholesaler": return "/api/wholesalers";
+      case "retailer": return "/api/retailers";
+      default: return "/api/resellers";
+    }
+  };
 
   // Debounced validation for email
   useEffect(() => {
@@ -48,7 +58,8 @@ export default function LandingPage() {
     const timer = setTimeout(async () => {
       setValidating(prev => ({ ...prev, email: true }));
       try {
-        const res = await fetch(`/api/resellers/check-availability?email=${encodeURIComponent(signUpData.email)}`);
+        const endpoint = getApiEndpoint(signUpData.userType);
+        const res = await fetch(`${endpoint}/check-availability?email=${encodeURIComponent(signUpData.email)}`);
         const data = await res.json();
         if (!data.email) {
           setFieldErrors(prev => ({ ...prev, email: "Email is already registered" }));
@@ -63,7 +74,7 @@ export default function LandingPage() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [signUpData.email]);
+  }, [signUpData.email, signUpData.userType]);
 
   // Debounced validation for phone
   useEffect(() => {
@@ -75,7 +86,8 @@ export default function LandingPage() {
     const timer = setTimeout(async () => {
       setValidating(prev => ({ ...prev, phone: true }));
       try {
-        const res = await fetch(`/api/resellers/check-availability?contactNumber=${encodeURIComponent(signUpData.contactNumber)}`);
+        const endpoint = getApiEndpoint(signUpData.userType);
+        const res = await fetch(`${endpoint}/check-availability?contactNumber=${encodeURIComponent(signUpData.contactNumber)}`);
         const data = await res.json();
         if (!data.contactNumber) {
           setFieldErrors(prev => ({ ...prev, contactNumber: "Phone number is already registered" }));
@@ -90,7 +102,7 @@ export default function LandingPage() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [signUpData.contactNumber]);
+  }, [signUpData.contactNumber, signUpData.userType]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,6 +127,7 @@ export default function LandingPage() {
         document.cookie = `user_type=${data.user.type}; path=/; max-age=604800`; // 7 days
         document.cookie = `user_id=${data.user.id}; path=/; max-age=604800`;
         document.cookie = `user_name=${encodeURIComponent(data.user.name)}; path=/; max-age=604800`;
+        document.cookie = `user_username=${encodeURIComponent(data.user.username || "")}; path=/; max-age=604800`;
 
         // Redirect to portal dashboard
         window.location.href = "/portal/dashboard";
@@ -152,7 +165,8 @@ export default function LandingPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/resellers/register", {
+      const endpoint = getApiEndpoint(signUpData.userType);
+      const res = await fetch(`${endpoint}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -169,13 +183,16 @@ export default function LandingPage() {
         throw new Error(data.error || "Registration failed");
       }
 
-      setSuccess("Registration successful! Please wait for admin approval.");
+      const userTypeLabel = signUpData.userType === "wholesaler" ? "Wholesaler" :
+                           signUpData.userType === "retailer" ? "Customer" : "Reseller";
+      setSuccess(`${userTypeLabel} registration successful! Please wait for admin approval.`);
       setSignUpData({
         name: "",
         email: "",
         contactNumber: "",
         password: "",
         confirmPassword: "",
+        userType: "reseller",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
@@ -224,7 +241,7 @@ export default function LandingPage() {
               onClick={() => openModal("signup")}
               className="bg-luxury-gold hover:bg-yellow-600 text-black font-semibold px-5 py-2 rounded-lg transition-all"
             >
-              Become a Reseller
+              Join Now
             </button>
           </div>
         </div>
@@ -250,8 +267,21 @@ export default function LandingPage() {
               onClick={() => openModal("signin")}
               className="border border-luxury-gold text-luxury-gold hover:bg-luxury-gold/10 font-semibold px-8 py-4 rounded-lg text-lg transition-all"
             >
-              Reseller Login
+              Login to Your Account
             </button>
+          </div>
+
+          {/* User type badges */}
+          <div className="flex flex-wrap justify-center gap-3 mt-8">
+            <span className="px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-full text-blue-400 text-sm">
+              Wholesalers
+            </span>
+            <span className="px-4 py-2 bg-green-500/20 border border-green-500/30 rounded-full text-green-400 text-sm">
+              Resellers
+            </span>
+            <span className="px-4 py-2 bg-orange-500/20 border border-orange-500/30 rounded-full text-orange-400 text-sm">
+              Customers
+            </span>
           </div>
         </div>
       </section>
@@ -297,15 +327,12 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-gray-500 text-sm">© 2025 MyLuxuryNetwork. All rights reserved.</p>
           <div className="flex items-center gap-6">
-            <Link href="/retail/login" className="text-gray-500 hover:text-gray-300 text-sm">
-              Retail
-            </Link>
-            <Link href="/reseller/login" className="text-gray-500 hover:text-gray-300 text-sm">
-              Reseller
-            </Link>
-            <Link href="/wholesale/login" className="text-gray-500 hover:text-gray-300 text-sm">
-              Wholesale
-            </Link>
+            <button
+              onClick={() => openModal("signin")}
+              className="text-gray-500 hover:text-luxury-gold text-sm transition-colors"
+            >
+              User Login
+            </button>
             <Link href="/admin/login" className="text-gray-500 hover:text-gray-300 text-sm">
               Admin
             </Link>
@@ -368,7 +395,12 @@ export default function LandingPage() {
                 <form onSubmit={handleSignIn} className="space-y-5">
                   <div className="text-center mb-6">
                     <h3 className="text-xl font-semibold text-white mb-2">Welcome Back</h3>
-                    <p className="text-gray-400 text-sm">Sign in to access your dashboard</p>
+                    <p className="text-gray-400 text-sm mb-4">Sign in to access your dashboard</p>
+                    <div className="flex justify-center gap-2 text-xs">
+                      <span className="px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded text-blue-400">Wholesaler</span>
+                      <span className="px-2 py-1 bg-green-500/20 border border-green-500/30 rounded text-green-400">Reseller</span>
+                      <span className="px-2 py-1 bg-orange-500/20 border border-orange-500/30 rounded text-orange-400">Customer</span>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -454,6 +486,45 @@ export default function LandingPage() {
                 </form>
               ) : (
                 <form onSubmit={handleSignUp} className="space-y-4">
+                  {/* User Type Selector */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">I am a *</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSignUpData({ ...signUpData, userType: "wholesaler" })}
+                        className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                          signUpData.userType === "wholesaler"
+                            ? "bg-blue-500/20 border-blue-500 text-blue-400"
+                            : "bg-luxury-gray border-gray-600 text-gray-400 hover:border-gray-500"
+                        }`}
+                      >
+                        Wholesaler
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSignUpData({ ...signUpData, userType: "reseller" })}
+                        className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                          signUpData.userType === "reseller"
+                            ? "bg-green-500/20 border-green-500 text-green-400"
+                            : "bg-luxury-gray border-gray-600 text-gray-400 hover:border-gray-500"
+                        }`}
+                      >
+                        Reseller
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSignUpData({ ...signUpData, userType: "retailer" })}
+                        className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                          signUpData.userType === "retailer"
+                            ? "bg-orange-500/20 border-orange-500 text-orange-400"
+                            : "bg-luxury-gray border-gray-600 text-gray-400 hover:border-gray-500"
+                        }`}
+                      >
+                        Customer
+                      </button>
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Full Name *</label>
                     <input

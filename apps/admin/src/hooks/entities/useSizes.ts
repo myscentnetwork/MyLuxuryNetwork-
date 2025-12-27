@@ -17,6 +17,8 @@ export interface Size {
   name: string;
   status: "active" | "inactive";
   createdAt: string;
+  categoryIds?: string[];
+  categoryNames?: string[];
 }
 
 // ============== HOOK ==============

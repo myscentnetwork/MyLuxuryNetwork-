@@ -2,28 +2,6 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import prisma from "@/lib/db";
 
-// Helper to get user type price field
-function getPriceField(userType: string): "wholesalePrice" | "resellerPrice" | "retailPrice" {
-  switch (userType) {
-    case "wholesaler":
-      return "wholesalePrice";
-    case "reseller":
-      return "resellerPrice";
-    case "retailer":
-    default:
-      return "retailPrice";
-  }
-}
-
-// Calculate selling price based on markup
-function calculateSellingPrice(basePrice: number, markupType: string, markupValue: number): number {
-  if (markupType === "percentage") {
-    return basePrice + (basePrice * markupValue / 100);
-  } else {
-    return basePrice + markupValue;
-  }
-}
-
 // GET - Get current auto-import settings
 export async function GET() {
   try {
@@ -42,8 +20,6 @@ export async function GET() {
         where: { id: userId },
         select: {
           autoImportEnabled: true,
-          autoImportMarkupType: true,
-          autoImportMarkupValue: true,
         },
       });
       settings = reseller;
@@ -52,8 +28,6 @@ export async function GET() {
         where: { id: userId },
         select: {
           autoImportEnabled: true,
-          autoImportMarkupType: true,
-          autoImportMarkupValue: true,
         },
       });
       settings = wholesaler;
@@ -62,8 +36,6 @@ export async function GET() {
         where: { id: userId },
         select: {
           autoImportEnabled: true,
-          autoImportMarkupType: true,
-          autoImportMarkupValue: true,
         },
       });
       settings = retailer;
@@ -83,8 +55,8 @@ export async function GET() {
   }
 }
 
-// POST - Enable auto-import and import all products
-export async function POST(request: Request) {
+// POST - Enable auto-import and import all products at MRP
+export async function POST() {
   try {
     const cookieStore = await cookies();
     const userType = cookieStore.get("user_type")?.value;
@@ -94,32 +66,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { markupType } = body;
-    // Default to 0 if markupValue is empty, null, or undefined
-    const markupValue = body.markupValue === "" || body.markupValue === null || body.markupValue === undefined
-      ? 0
-      : Number(body.markupValue);
-
-    if (!markupType) {
-      return NextResponse.json(
-        { error: "Markup type is required" },
-        { status: 400 }
-      );
-    }
-
-    // Get all active products
+    // Get all active products with MRP
     const allProducts = await prisma.product.findMany({
       where: { status: "in_stock" },
       select: {
         id: true,
+        mrp: true,
         wholesalePrice: true,
         resellerPrice: true,
         retailPrice: true,
       },
     });
-
-    const priceField = getPriceField(userType);
 
     // Filter products based on user type - only import products with their respective price set
     const products = allProducts.filter(product => {
@@ -137,8 +94,6 @@ export async function POST(request: Request) {
         where: { id: userId },
         data: {
           autoImportEnabled: true,
-          autoImportMarkupType: markupType,
-          autoImportMarkupValue: markupValue,
         },
       });
 
@@ -149,40 +104,18 @@ export async function POST(request: Request) {
       });
       const existingProductIds = new Set(existingProducts.map(p => p.productId));
 
-      // Import all products that aren't already imported
+      // Import all products that aren't already imported (at Minimum Selling Price as default)
       for (const product of products) {
         if (!existingProductIds.has(product.id)) {
-          const basePrice = product[priceField] || product.wholesalePrice || 0;
-          const sellingPrice = calculateSellingPrice(basePrice, markupType, markupValue);
-
           await prisma.resellerProduct.create({
             data: {
               resellerId: userId,
               productId: product.id,
-              sellingPrice,
-              markupType,
-              markupValue,
+              sellingPrice: product.retailPrice, // Default to Minimum Selling Price
               isAutoImported: true,
             },
           });
           importedCount++;
-        } else {
-          // Update existing auto-imported products with new markup
-          const basePrice = product[priceField] || product.wholesalePrice || 0;
-          const sellingPrice = calculateSellingPrice(basePrice, markupType, markupValue);
-
-          await prisma.resellerProduct.updateMany({
-            where: {
-              resellerId: userId,
-              productId: product.id,
-              isAutoImported: true,
-            },
-            data: {
-              sellingPrice,
-              markupType,
-              markupValue,
-            },
-          });
         }
       }
     } else if (userType === "wholesaler") {
@@ -191,8 +124,6 @@ export async function POST(request: Request) {
         where: { id: userId },
         data: {
           autoImportEnabled: true,
-          autoImportMarkupType: markupType,
-          autoImportMarkupValue: markupValue,
         },
       });
 
@@ -203,40 +134,18 @@ export async function POST(request: Request) {
       });
       const existingProductIds = new Set(existingProducts.map(p => p.productId));
 
-      // Import all products that aren't already imported
+      // Import all products that aren't already imported (at Minimum Selling Price as default)
       for (const product of products) {
         if (!existingProductIds.has(product.id)) {
-          const basePrice = product[priceField] || 0;
-          const sellingPrice = calculateSellingPrice(basePrice, markupType, markupValue);
-
           await prisma.wholesalerProduct.create({
             data: {
               wholesalerId: userId,
               productId: product.id,
-              sellingPrice,
-              markupType,
-              markupValue,
+              sellingPrice: product.retailPrice, // Default to Minimum Selling Price
               isAutoImported: true,
             },
           });
           importedCount++;
-        } else {
-          // Update existing auto-imported products with new markup
-          const basePrice = product[priceField] || 0;
-          const sellingPrice = calculateSellingPrice(basePrice, markupType, markupValue);
-
-          await prisma.wholesalerProduct.updateMany({
-            where: {
-              wholesalerId: userId,
-              productId: product.id,
-              isAutoImported: true,
-            },
-            data: {
-              sellingPrice,
-              markupType,
-              markupValue,
-            },
-          });
         }
       }
     } else if (userType === "retailer") {
@@ -245,8 +154,6 @@ export async function POST(request: Request) {
         where: { id: userId },
         data: {
           autoImportEnabled: true,
-          autoImportMarkupType: markupType,
-          autoImportMarkupValue: markupValue,
         },
       });
 
@@ -257,54 +164,32 @@ export async function POST(request: Request) {
       });
       const existingProductIds = new Set(existingProducts.map(p => p.productId));
 
-      // Import all products that aren't already imported
+      // Import all products that aren't already imported (at Minimum Selling Price as default)
       for (const product of products) {
         if (!existingProductIds.has(product.id)) {
-          const basePrice = product[priceField] || 0;
-          const sellingPrice = calculateSellingPrice(basePrice, markupType, markupValue);
-
           await prisma.retailerProduct.create({
             data: {
               retailerId: userId,
               productId: product.id,
-              sellingPrice,
-              markupType,
-              markupValue,
+              sellingPrice: product.retailPrice, // Default to Minimum Selling Price
               isAutoImported: true,
             },
           });
           importedCount++;
-        } else {
-          // Update existing auto-imported products with new markup
-          const basePrice = product[priceField] || 0;
-          const sellingPrice = calculateSellingPrice(basePrice, markupType, markupValue);
-
-          await prisma.retailerProduct.updateMany({
-            where: {
-              retailerId: userId,
-              productId: product.id,
-              isAutoImported: true,
-            },
-            data: {
-              sellingPrice,
-              markupType,
-              markupValue,
-            },
-          });
         }
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: `Auto-import enabled. ${importedCount} new products imported.`,
+      message: `${importedCount} products imported successfully! You can set your markup in My Store.`,
       importedCount,
       totalProducts: products.length,
     });
   } catch (error) {
     console.error("Error enabling auto-import:", error);
     return NextResponse.json(
-      { error: "Failed to enable auto-import" },
+      { error: "Failed to import products" },
       { status: 500 }
     );
   }

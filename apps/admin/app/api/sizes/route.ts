@@ -1,24 +1,42 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
-// GET /api/sizes - List all sizes
+// GET /api/sizes - List all sizes with their categories
 export async function GET() {
   try {
     const sizes = await prisma.size.findMany({
+      include: {
+        categories: {
+          include: {
+            category: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
-    return NextResponse.json(sizes);
+
+    // Transform to include categoryIds and category names
+    const transformedSizes = sizes.map((size) => ({
+      ...size,
+      categoryIds: size.categories.map((c) => c.categoryId),
+      categoryNames: size.categories.map((c) => c.category.name),
+      categories: undefined, // Remove the raw relation
+    }));
+
+    return NextResponse.json(transformedSizes);
   } catch (error) {
     console.error("Error fetching sizes:", error);
     return NextResponse.json({ error: "Failed to fetch sizes" }, { status: 500 });
   }
 }
 
-// POST /api/sizes - Create one or multiple sizes
+// POST /api/sizes - Create one or multiple sizes with category associations
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, names, status = "active" } = body;
+    const { name, names, status = "active", categoryIds = [] } = body;
 
     // Handle multiple sizes (comma-separated input)
     if (names && Array.isArray(names)) {
@@ -43,11 +61,20 @@ export async function POST(request: Request) {
         }
       }
 
-      // Create new sizes
+      // Create new sizes with category associations
       if (toCreate.length > 0) {
-        await prisma.size.createMany({
-          data: toCreate.map((n) => ({ name: n, status })),
-        });
+        // Cannot use createMany with nested creates, so create individually
+        for (const sizeName of toCreate) {
+          await prisma.size.create({
+            data: {
+              name: sizeName,
+              status,
+              categories: {
+                create: categoryIds.map((categoryId: string) => ({ categoryId })),
+              },
+            },
+          });
+        }
       }
 
       return NextResponse.json(
@@ -84,10 +111,33 @@ export async function POST(request: Request) {
     }
 
     const size = await prisma.size.create({
-      data: { name, status },
+      data: {
+        name,
+        status,
+        categories: {
+          create: categoryIds.map((categoryId: string) => ({ categoryId })),
+        },
+      },
+      include: {
+        categories: {
+          include: {
+            category: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
     });
 
-    return NextResponse.json(size, { status: 201 });
+    return NextResponse.json(
+      {
+        ...size,
+        categoryIds: size.categories.map((c) => c.categoryId),
+        categoryNames: size.categories.map((c) => c.category.name),
+        categories: undefined,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Error creating size:", error);
     return NextResponse.json({ error: "Failed to create size" }, { status: 500 });

@@ -4,15 +4,6 @@ import prisma from "@/lib/db";
 // This endpoint syncs all auto-import enabled users with new products
 // Called when a new product is added or to manually sync
 
-// Calculate selling price based on markup
-function calculateSellingPrice(basePrice: number, markupType: string, markupValue: number): number {
-  if (markupType === "percentage") {
-    return basePrice + (basePrice * markupValue / 100);
-  } else {
-    return basePrice + markupValue;
-  }
-}
-
 export async function POST() {
   try {
     // Get all products
@@ -42,8 +33,6 @@ export async function POST() {
       where: { autoImportEnabled: true },
       select: {
         id: true,
-        autoImportMarkupType: true,
-        autoImportMarkupValue: true,
         importedProducts: {
           select: { productId: true, isAutoImported: true },
         },
@@ -53,22 +42,15 @@ export async function POST() {
     for (const reseller of resellers) {
       syncStats.resellersProcessed++;
       const existingProductIds = new Set(reseller.importedProducts.map(p => p.productId));
-      const markupType = reseller.autoImportMarkupType || "percentage";
-      const markupValue = reseller.autoImportMarkupValue || 0;
 
-      // Add new products
+      // Add new products - default to Minimum Selling Price (retailPrice)
       for (const product of products) {
-        if (!existingProductIds.has(product.id)) {
-          const basePrice = product.resellerPrice || product.wholesalePrice || 0;
-          const sellingPrice = calculateSellingPrice(basePrice, markupType, markupValue);
-
+        if (!existingProductIds.has(product.id) && (product.resellerPrice || 0) > 0) {
           await prisma.resellerProduct.create({
             data: {
               resellerId: reseller.id,
               productId: product.id,
-              sellingPrice,
-              markupType,
-              markupValue,
+              sellingPrice: product.retailPrice, // Default to Minimum Selling Price
               isAutoImported: true,
             },
           });
@@ -96,8 +78,6 @@ export async function POST() {
       where: { autoImportEnabled: true },
       select: {
         id: true,
-        autoImportMarkupType: true,
-        autoImportMarkupValue: true,
         importedProducts: {
           select: { productId: true, isAutoImported: true },
         },
@@ -107,22 +87,15 @@ export async function POST() {
     for (const wholesaler of wholesalers) {
       syncStats.wholesalersProcessed++;
       const existingProductIds = new Set(wholesaler.importedProducts.map(p => p.productId));
-      const markupType = wholesaler.autoImportMarkupType || "percentage";
-      const markupValue = wholesaler.autoImportMarkupValue || 0;
 
-      // Add new products
+      // Add new products - default to Minimum Selling Price (retailPrice)
       for (const product of products) {
-        if (!existingProductIds.has(product.id)) {
-          const basePrice = product.wholesalePrice || 0;
-          const sellingPrice = calculateSellingPrice(basePrice, markupType, markupValue);
-
+        if (!existingProductIds.has(product.id) && (product.wholesalePrice || 0) > 0) {
           await prisma.wholesalerProduct.create({
             data: {
               wholesalerId: wholesaler.id,
               productId: product.id,
-              sellingPrice,
-              markupType,
-              markupValue,
+              sellingPrice: product.retailPrice, // Default to Minimum Selling Price
               isAutoImported: true,
             },
           });
@@ -150,8 +123,6 @@ export async function POST() {
       where: { autoImportEnabled: true },
       select: {
         id: true,
-        autoImportMarkupType: true,
-        autoImportMarkupValue: true,
         importedProducts: {
           select: { productId: true, isAutoImported: true },
         },
@@ -161,22 +132,15 @@ export async function POST() {
     for (const retailer of retailers) {
       syncStats.retailersProcessed++;
       const existingProductIds = new Set(retailer.importedProducts.map(p => p.productId));
-      const markupType = retailer.autoImportMarkupType || "percentage";
-      const markupValue = retailer.autoImportMarkupValue || 0;
 
-      // Add new products
+      // Add new products - default to Minimum Selling Price (retailPrice)
       for (const product of products) {
-        if (!existingProductIds.has(product.id)) {
-          const basePrice = product.retailPrice || 0;
-          const sellingPrice = calculateSellingPrice(basePrice, markupType, markupValue);
-
+        if (!existingProductIds.has(product.id) && (product.retailPrice || 0) > 0) {
           await prisma.retailerProduct.create({
             data: {
               retailerId: retailer.id,
               productId: product.id,
-              sellingPrice,
-              markupType,
-              markupValue,
+              sellingPrice: product.retailPrice, // Default to Minimum Selling Price
               isAutoImported: true,
             },
           });

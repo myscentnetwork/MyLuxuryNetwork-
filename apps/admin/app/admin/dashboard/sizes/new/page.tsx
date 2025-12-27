@@ -1,15 +1,50 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AdminLayout from "@/src/components/layouts/AdminLayout";
+
+interface Category {
+  id: string;
+  name: string;
+  status: string;
+}
 
 export default function AddSize() {
   const router = useRouter();
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [results, setResults] = useState<{ created: string[]; skipped: string[] } | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+
+  // Fetch categories on mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch("/api/categories");
+        if (res.ok) {
+          const data = await res.json();
+          setCategories(data.filter((c: Category) => c.status === "active"));
+        }
+      } catch (error) {
+        console.error("Failed to fetch categories:", error);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategoryIds((prev) =>
+      prev.includes(categoryId)
+        ? prev.filter((id) => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
 
   // Parse comma-separated sizes and show preview
   const parsedSizes = useMemo(() => {
@@ -34,7 +69,11 @@ export default function AddSize() {
       const res = await fetch("/api/sizes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ names: parsedSizes, status: "active" }),
+        body: JSON.stringify({
+          names: parsedSizes,
+          status: "active",
+          categoryIds: selectedCategoryIds,
+        }),
       });
 
       if (!res.ok) throw new Error("Failed to create sizes");
@@ -152,6 +191,49 @@ export default function AddSize() {
                 <p className="mt-2 text-sm text-gray-500">
                   Separate multiple sizes with commas. Examples: XS, S, M, L, XL or UK6, UK7, UK8, UK9
                 </p>
+              </div>
+
+              {/* Category Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Applicable Categories
+                </label>
+                <p className="text-sm text-gray-500 mb-3">
+                  Select which categories these sizes apply to (optional)
+                </p>
+                {loadingCategories ? (
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-luxury-gold"></div>
+                    Loading categories...
+                  </div>
+                ) : categories.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No categories available</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {categories.map((category) => (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => toggleCategory(category.id)}
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                          selectedCategoryIds.includes(category.id)
+                            ? "bg-luxury-gold text-black"
+                            : "bg-luxury-gray text-gray-300 hover:bg-gray-700"
+                        }`}
+                      >
+                        {category.name}
+                        {selectedCategoryIds.includes(category.id) && (
+                          <span className="ml-2">x</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedCategoryIds.length > 0 && (
+                  <p className="mt-2 text-sm text-luxury-gold">
+                    {selectedCategoryIds.length} categor{selectedCategoryIds.length === 1 ? "y" : "ies"} selected
+                  </p>
+                )}
               </div>
 
               {/* Preview of sizes to be created */}

@@ -63,20 +63,13 @@ export default function PortalProducts() {
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  // Import modal state
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [markupType, setMarkupType] = useState<"percentage" | "fixed">("percentage");
-  const [markupPercentage, setMarkupPercentage] = useState<string>("");
-  const [markupFixed, setMarkupFixed] = useState<string>("");
-  const [importing, setImporting] = useState(false);
+  // Import state
+  const [importing, setImporting] = useState<string | null>(null);
   const [importedProductIds, setImportedProductIds] = useState<Set<string>>(new Set());
 
   // Auto-import state
   const [autoImportModalOpen, setAutoImportModalOpen] = useState(false);
   const [autoImportEnabled, setAutoImportEnabled] = useState(false);
-  const [autoImportMarkupType, setAutoImportMarkupType] = useState<"percentage" | "fixed">("percentage");
-  const [autoImportMarkupValue, setAutoImportMarkupValue] = useState<string>("");
   const [enablingAutoImport, setEnablingAutoImport] = useState(false);
   const [storeSlug, setStoreSlug] = useState<string>("");
   const [baseUrl, setBaseUrl] = useState<string>("");
@@ -171,8 +164,6 @@ export default function PortalProducts() {
           const autoImportData = await autoImportRes.json();
           if (autoImportData.settings) {
             setAutoImportEnabled(autoImportData.settings.autoImportEnabled || false);
-            setAutoImportMarkupType(autoImportData.settings.autoImportMarkupType || "percentage");
-            setAutoImportMarkupValue(autoImportData.settings.autoImportMarkupValue?.toString() || "");
           }
         }
 
@@ -219,26 +210,6 @@ export default function PortalProducts() {
       currency: "INR",
       minimumFractionDigits: 0,
     }).format(price);
-  };
-
-  // Calculate selling price with markup
-  const calculateSellingPrice = () => {
-    if (!selectedProduct) return 0;
-    const basePrice = getPrice(selectedProduct);
-    const percentageValue = parseFloat(markupPercentage) || 0;
-    const fixedValue = parseFloat(markupFixed) || 0;
-    if (markupType === "percentage") {
-      return basePrice + (basePrice * percentageValue / 100);
-    } else {
-      return basePrice + fixedValue;
-    }
-  };
-
-  // Calculate profit
-  const calculateProfit = () => {
-    if (!selectedProduct) return 0;
-    const basePrice = getPrice(selectedProduct);
-    return calculateSellingPrice() - basePrice;
   };
 
   // Get filtered categories based on search
@@ -327,33 +298,14 @@ export default function PortalProducts() {
     setSearchQuery("");
   };
 
-  // Import handlers
-  const openImportModal = (product: Product) => {
-    setSelectedProduct(product);
-    setMarkupType("percentage");
-    setMarkupPercentage("");
-    setMarkupFixed("");
-    setImportModalOpen(true);
-  };
-
-  const closeImportModal = () => {
-    setImportModalOpen(false);
-    setSelectedProduct(null);
-    setMarkupPercentage("");
-    setMarkupFixed("");
-  };
-
-  const handleImport = async () => {
-    if (!selectedProduct) {
-      alert("No product selected");
-      return;
-    }
+  // Import handler - imports product at MRP as default selling price
+  const handleImport = async (product: Product) => {
     if (!userId) {
       alert("You must be logged in to import products. Please log in again.");
       return;
     }
 
-    setImporting(true);
+    setImporting(product.id);
     try {
       let endpoint = "";
       if (userType === "reseller") {
@@ -364,23 +316,20 @@ export default function PortalProducts() {
         endpoint = `/api/retailer/${userId}/products`;
       }
 
-      console.log("Importing product:", { userId, userType, endpoint, productId: selectedProduct.id });
+      console.log("Importing product:", { userId, userType, endpoint, productId: product.id });
 
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productId: selectedProduct.id,
-          sellingPrice: calculateSellingPrice(),
-          markupType,
-          markupValue: markupType === "percentage" ? (parseFloat(markupPercentage) || 0) : (parseFloat(markupFixed) || 0),
+          productId: product.id,
+          sellingPrice: product.retailPrice, // Default to Minimum Selling Price
         }),
       });
 
       if (res.ok) {
-        setImportedProductIds((prev) => new Set([...prev, selectedProduct.id]));
-        closeImportModal();
-        alert("Product imported successfully!");
+        setImportedProductIds((prev) => new Set([...prev, product.id]));
+        alert("Product imported successfully! You can set your selling price in My Store.");
       } else {
         const data = await res.json();
         alert(data.error || "Failed to import product");
@@ -389,7 +338,7 @@ export default function PortalProducts() {
       console.error("Import error:", error);
       alert("Failed to import product");
     }
-    setImporting(false);
+    setImporting(null);
   };
 
   // Auto-import handlers
@@ -412,10 +361,7 @@ export default function PortalProducts() {
       const res = await fetch("/api/portal/auto-import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          markupType: autoImportMarkupType,
-          markupValue: parseFloat(autoImportMarkupValue) || 0,
-        }),
+        body: JSON.stringify({}),
       });
 
       if (res.ok) {
@@ -424,14 +370,14 @@ export default function PortalProducts() {
         closeAutoImportModal();
         // Refresh imported products
         fetchData(userId, userType);
-        alert(data.message || "Auto-import enabled successfully!");
+        alert(data.message || "All products imported successfully! You can set your markup in My Store.");
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to enable auto-import");
+        alert(data.error || "Failed to import products");
       }
     } catch (error) {
       console.error("Auto-import error:", error);
-      alert("Failed to enable auto-import");
+      alert("Failed to import products");
     }
     setEnablingAutoImport(false);
   };
@@ -456,16 +402,6 @@ export default function PortalProducts() {
     } catch (error) {
       console.error("Disable auto-import error:", error);
       alert("Failed to disable auto-import");
-    }
-  };
-
-  // Calculate auto-import preview price
-  const calculateAutoImportPreviewPrice = (basePrice: number) => {
-    const markupVal = parseFloat(autoImportMarkupValue) || 0;
-    if (autoImportMarkupType === "percentage") {
-      return basePrice + (basePrice * markupVal / 100);
-    } else {
-      return basePrice + markupVal;
     }
   };
 
@@ -647,8 +583,8 @@ export default function PortalProducts() {
               </h3>
               <p className="text-sm text-gray-400">
                 {autoImportEnabled
-                  ? `All existing products will be auto-imported and all new products will be added automatically in future. (Markup: ${autoImportMarkupType === "percentage" ? autoImportMarkupValue + "%" : "₹" + autoImportMarkupValue})`
-                  : "Import entire catalogue with a single markup setting. New products will be added automatically."
+                  ? "All products are imported. New products will be added automatically. Set your markup in My Store."
+                  : "Import entire catalogue at once. Set your markup in My Store page."
                 }
               </p>
               {!autoImportEnabled && (
@@ -1097,11 +1033,13 @@ export default function PortalProducts() {
 
                       {/* Import Button */}
                       <button
-                        onClick={() => openImportModal(product)}
-                        disabled={isImported}
+                        onClick={() => handleImport(product)}
+                        disabled={isImported || importing === product.id}
                         className={`w-full mt-4 py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
                           isImported
                             ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                            : importing === product.id
+                            ? "bg-luxury-gold/50 text-black cursor-wait"
                             : "bg-luxury-gold hover:bg-yellow-600 text-black"
                         }`}
                       >
@@ -1111,6 +1049,11 @@ export default function PortalProducts() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
                             Already Imported
+                          </>
+                        ) : importing === product.id ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
+                            Importing...
                           </>
                         ) : (
                           <>
@@ -1211,15 +1154,22 @@ export default function PortalProducts() {
                           </td>
                           <td className="px-6 py-4 text-right">
                             <button
-                              onClick={() => openImportModal(product)}
-                              disabled={isImported}
-                              className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                              onClick={() => handleImport(product)}
+                              disabled={isImported || importing === product.id}
+                              className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm flex items-center gap-2 ${
                                 isImported
                                   ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                                  : importing === product.id
+                                  ? "bg-luxury-gold/50 text-black cursor-wait"
                                   : "bg-luxury-gold hover:bg-yellow-600 text-black"
                               }`}
                             >
-                              {isImported ? "Imported" : "Import"}
+                              {isImported ? "Imported" : importing === product.id ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
+                                  Importing...
+                                </>
+                              ) : "Import"}
                             </button>
                           </td>
                         </tr>
@@ -1233,181 +1183,13 @@ export default function PortalProducts() {
         </>
       )}
 
-      {/* Import Modal */}
-      {importModalOpen && selectedProduct && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="bg-luxury-dark rounded-2xl border border-luxury-gray w-full max-w-lg overflow-hidden">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-luxury-gray flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">Import Product</h3>
-              <button
-                onClick={closeImportModal}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6">
-              {/* Product Info */}
-              <div className="flex gap-4 mb-6">
-                <div className="w-20 h-20 bg-white rounded-lg overflow-hidden relative flex-shrink-0">
-                  {selectedProduct.images?.[0] ? (
-                    <Image
-                      src={selectedProduct.images[0]}
-                      alt={selectedProduct.sku}
-                      fill
-                      className="object-contain"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <h4 className="text-white font-medium">{selectedProduct.name || selectedProduct.sku}</h4>
-                  <p className="text-gray-500 text-sm font-mono">{selectedProduct.sku}</p>
-                  <p className="text-gray-400 text-sm mt-1">{selectedProduct.brandName}</p>
-                </div>
-              </div>
-
-              {/* Price Info */}
-              <div className="bg-luxury-gray rounded-lg p-4 mb-6">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-400 text-sm">
-                    Your Cost Price ({userType === "wholesaler" ? "Wholesale Price" : userType === "reseller" ? "Reseller Price" : "Offer Price"})
-                  </span>
-                  <span className={`font-bold ${config.color}`}>{formatPrice(getPrice(selectedProduct))}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm">MRP</span>
-                  <span className="text-gray-400 line-through">{formatPrice(selectedProduct.mrp)}</span>
-                </div>
-              </div>
-
-              {/* Markup Type Selection */}
-              <div className="mb-4">
-                <label className="text-gray-400 text-sm mb-2 block">Add Markup</label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setMarkupType("percentage")}
-                    className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
-                      markupType === "percentage"
-                        ? "bg-luxury-gold text-black"
-                        : "bg-luxury-gray text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Percentage (%)
-                  </button>
-                  <button
-                    onClick={() => setMarkupType("fixed")}
-                    className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
-                      markupType === "fixed"
-                        ? "bg-luxury-gold text-black"
-                        : "bg-luxury-gray text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Fixed Amount
-                  </button>
-                </div>
-              </div>
-
-              {/* Markup Input */}
-              <div className="mb-6">
-                {markupType === "percentage" ? (
-                  <div>
-                    <label className="text-gray-400 text-sm mb-2 block">Markup Percentage</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={markupPercentage}
-                        onChange={(e) => setMarkupPercentage(e.target.value)}
-                        className="w-full px-4 py-3 bg-luxury-gray border border-luxury-gray rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-luxury-gold"
-                        placeholder="Enter percentage"
-                      />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">%</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="text-gray-400 text-sm mb-2 block">Fixed Markup Amount</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={markupFixed}
-                        onChange={(e) => setMarkupFixed(e.target.value)}
-                        className="w-full px-4 py-3 pl-8 bg-luxury-gray border border-luxury-gray rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-luxury-gold"
-                        placeholder="Enter amount"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Calculated Prices */}
-              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-6">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-300 text-sm">Your Selling Price</span>
-                  <span className="text-2xl font-bold text-green-400">{formatPrice(calculateSellingPrice())}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm">Your Profit per Sale</span>
-                  <span className="text-green-400 font-medium">+{formatPrice(calculateProfit())}</span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={closeImportModal}
-                  className="flex-1 py-3 bg-luxury-gray text-gray-300 rounded-lg font-medium hover:bg-luxury-gray/70 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleImport}
-                  disabled={importing}
-                  className="flex-1 py-3 bg-luxury-gold text-black rounded-lg font-medium hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {importing ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
-                      Importing...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                      Import to My Store
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Auto-Import Modal */}
       {autoImportModalOpen && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="bg-luxury-dark rounded-2xl border border-luxury-gray w-full max-w-lg overflow-hidden">
+          <div className="bg-luxury-dark rounded-2xl border border-luxury-gray w-full max-w-md overflow-hidden">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-luxury-gray flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">
-                {autoImportEnabled ? "Update Auto-Import Settings" : "Import All Products"}
-              </h3>
+              <h3 className="text-lg font-semibold text-white">Import All Products</h3>
               <button
                 onClick={closeAutoImportModal}
                 className="text-gray-400 hover:text-white transition-colors"
@@ -1427,12 +1209,12 @@ export default function PortalProducts() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <div className="text-sm text-gray-300">
-                    <p className="font-medium text-blue-400 mb-1">How Auto-Import Works:</p>
+                    <p className="font-medium text-blue-400 mb-1">What will happen:</p>
                     <ul className="space-y-1 text-gray-400">
                       <li>• All {products.length} products will be imported to your store</li>
-                      <li>• Your markup will be applied to set your selling price</li>
+                      <li>• Products will be imported at MRP as default selling price</li>
+                      <li>• You can set your markup in <span className="text-luxury-gold">My Store</span> page</li>
                       <li>• New products added by admin will be auto-imported</li>
-                      <li>• Removed products will be auto-removed from your store</li>
                     </ul>
                   </div>
                 </div>
@@ -1450,90 +1232,6 @@ export default function PortalProducts() {
                 </div>
               </div>
 
-              {/* Markup Type Selection */}
-              <div className="mb-4">
-                <label className="text-gray-400 text-sm mb-2 block">Set Markup for All Products</label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setAutoImportMarkupType("percentage")}
-                    className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
-                      autoImportMarkupType === "percentage"
-                        ? "bg-luxury-gold text-black"
-                        : "bg-luxury-gray text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Percentage (%)
-                  </button>
-                  <button
-                    onClick={() => setAutoImportMarkupType("fixed")}
-                    className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
-                      autoImportMarkupType === "fixed"
-                        ? "bg-luxury-gold text-black"
-                        : "bg-luxury-gray text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Fixed Amount
-                  </button>
-                </div>
-              </div>
-
-              {/* Markup Input */}
-              <div className="mb-6">
-                {autoImportMarkupType === "percentage" ? (
-                  <div>
-                    <label className="text-gray-400 text-sm mb-2 block">Markup Percentage</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={autoImportMarkupValue}
-                        onChange={(e) => setAutoImportMarkupValue(e.target.value)}
-                        className="w-full px-4 py-3 bg-luxury-gray border border-luxury-gray rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-luxury-gold"
-                        placeholder="Enter percentage"
-                      />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">%</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="text-gray-400 text-sm mb-2 block">Fixed Markup Amount</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={autoImportMarkupValue}
-                        onChange={(e) => setAutoImportMarkupValue(e.target.value)}
-                        className="w-full px-4 py-3 pl-8 bg-luxury-gray border border-luxury-gray rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-luxury-gold"
-                        placeholder="Enter amount"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Preview Example */}
-              {products.length > 0 && products[0] && (
-                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-6">
-                  <p className="text-sm text-gray-400 mb-2">Example Preview (first product):</p>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-white font-medium text-sm">{products[0].name || products[0].sku || "Product"}</p>
-                      <p className="text-gray-400 text-xs">Base: {formatPrice(getPrice(products[0]))}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-green-400 font-bold">
-                        {formatPrice(calculateAutoImportPreviewPrice(getPrice(products[0])))}
-                      </p>
-                      <p className="text-green-400 text-xs">
-                        +{formatPrice(calculateAutoImportPreviewPrice(getPrice(products[0])) - getPrice(products[0]))} profit
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Action Buttons */}
               <div className="flex gap-3">
                 <button
@@ -1550,14 +1248,14 @@ export default function PortalProducts() {
                   {enablingAutoImport ? (
                     <>
                       <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
-                      {autoImportEnabled ? "Updating..." : "Importing..."}
+                      Importing...
                     </>
                   ) : (
                     <>
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                       </svg>
-                      {autoImportEnabled ? "Update Settings" : "Enable Auto-Import"}
+                      Import All Products
                     </>
                   )}
                 </button>

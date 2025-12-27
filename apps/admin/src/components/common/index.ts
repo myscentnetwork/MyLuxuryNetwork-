@@ -8,6 +8,7 @@
 export * from "./Badge";
 export * from "./Button";
 export * from "./EmptyState";
+export * from "./Image";
 export * from "./Loading";
 export * from "./Modal";
 export * from "./PriceDisplay";

@@ -175,7 +175,7 @@ export default function AdminLayout({ children, title, actions }: AdminLayoutPro
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
-                  Retail Customers
+                  Customers
                 </Link>
               </div>
             )}
@@ -441,6 +441,25 @@ export default function AdminLayout({ children, title, actions }: AdminLayoutPro
             </svg>
             Settings
           </Link>
+
+          {/* Divider */}
+          <div className="border-t border-luxury-gray my-4 mx-6"></div>
+
+          {/* Store Frontend */}
+          <a
+            href="http://localhost:3003"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center px-6 py-3 transition-colors text-gray-400 hover:text-white hover:bg-luxury-gray"
+          >
+            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            Store Frontend
+            <svg className="w-4 h-4 ml-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
         </nav>
       </aside>
 
@@ -482,7 +501,7 @@ export default function AdminLayout({ children, title, actions }: AdminLayoutPro
                 }}
                 className="px-2 py-1 bg-orange-500/20 hover:bg-orange-500/40 text-orange-400 text-xs rounded transition-colors"
               >
-                Retailer
+                Customer
               </button>
             </div>
             <button

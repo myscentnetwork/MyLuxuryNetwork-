@@ -59,6 +59,7 @@ export async function PUT(
       sku,
       description,
       video,
+      videoUrl: externalVideoUrl, // YouTube/Vimeo/external video URL
       categoryId,
       brandId,
       sizeIds,
@@ -91,10 +92,10 @@ export async function PUT(
     }
 
     // Upload video if new (or store base64 directly)
-    let videoUrl = video || null;
+    let uploadedVideoUrl = video || null;
     if (video && video.startsWith("data:")) {
       const result = await uploadVideo(video, "myluxury/products/videos");
-      videoUrl = result?.url || video; // Fallback to base64 if Cloudinary not configured
+      uploadedVideoUrl = result?.url || video; // Fallback to base64 if Cloudinary not configured
     }
 
     const product = await prisma.product.update({
@@ -103,7 +104,8 @@ export async function PUT(
         name,
         sku,
         description,
-        video: videoUrl,
+        video: uploadedVideoUrl,
+        videoUrl: externalVideoUrl !== undefined ? (externalVideoUrl || null) : undefined, // Store external video URL (YouTube/Vimeo)
         isFeatured,
         isNewArrival,
         isBestSeller,

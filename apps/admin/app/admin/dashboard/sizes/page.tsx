@@ -142,7 +142,7 @@ export default function SizeList() {
                   <h3 className="text-white font-medium text-lg mb-2">{size.name}</h3>
                   <button
                     onClick={() => handleToggleStatus(size.id)}
-                    className={`px-2 py-1 text-xs rounded-full mb-3 ${
+                    className={`px-2 py-1 text-xs rounded-full mb-2 ${
                       size.status === "active"
                         ? "bg-green-500/20 text-green-400"
                         : "bg-gray-500/20 text-gray-400"
@@ -150,6 +150,24 @@ export default function SizeList() {
                   >
                     {size.status}
                   </button>
+                  {/* Categories */}
+                  {size.categoryNames && size.categoryNames.length > 0 && (
+                    <div className="flex flex-wrap justify-center gap-1 mb-3">
+                      {size.categoryNames.slice(0, 2).map((catName: string, idx: number) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 text-xs bg-luxury-gold/20 text-luxury-gold rounded-full"
+                        >
+                          {catName}
+                        </span>
+                      ))}
+                      {size.categoryNames.length > 2 && (
+                        <span className="px-2 py-0.5 text-xs bg-luxury-gray text-gray-400 rounded-full">
+                          +{size.categoryNames.length - 2}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center justify-center gap-1 pt-3 border-t border-luxury-gray">
                     <Link
                       href={`/admin/dashboard/sizes/edit/${size.id}`}
@@ -183,6 +201,7 @@ export default function SizeList() {
                   <thead>
                     <tr className="border-b border-luxury-gray">
                       <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Size</th>
+                      <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Categories</th>
                       <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Status</th>
                       <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Actions</th>
                     </tr>
@@ -192,6 +211,22 @@ export default function SizeList() {
                       <tr key={size.id} className="border-b border-luxury-gray hover:bg-luxury-gray/50 transition-colors">
                         <td className="px-6 py-4">
                           <p className="text-white font-medium">{size.name}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          {size.categoryNames && size.categoryNames.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {size.categoryNames.map((catName: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-0.5 text-xs bg-luxury-gold/20 text-luxury-gold rounded-full"
+                                >
+                                  {catName}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-500 text-sm">All categories</span>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <button

@@ -1,4 +1,5 @@
 import { v2 as cloudinary } from "cloudinary";
+import { optimizeImage, QUALITY_PRESETS, type OptimizationOptions } from "./imageOptimizer";
 
 // Configure Cloudinary
 cloudinary.config({
@@ -10,6 +11,12 @@ cloudinary.config({
 export interface UploadResult {
   url: string;
   publicId: string;
+  width?: number;
+  height?: number;
+  format?: string;
+  originalSize?: number;
+  optimizedSize?: number;
+  compressionRatio?: number;
 }
 
 /**
@@ -31,12 +38,14 @@ export function isCloudinaryConfigured(): boolean {
 }
 
 /**
- * Upload a base64 image to Cloudinary
+ * Upload a base64 image to Cloudinary with auto-optimization
+ * Images are optimized locally before upload for best quality/size ratio
  * Returns null if Cloudinary is not configured (graceful fallback)
  */
 export async function uploadImage(
   base64Data: string,
-  folder: string = "myluxury"
+  folder: string = "myluxury",
+  preset: keyof typeof QUALITY_PRESETS = "product"
 ): Promise<UploadResult | null> {
   // Check if Cloudinary is configured
   if (!isCloudinaryConfigured()) {
@@ -45,12 +54,28 @@ export async function uploadImage(
   }
 
   try {
-    const result = await cloudinary.uploader.upload(base64Data, {
+    // Get optimization settings from preset
+    const optimizationSettings = QUALITY_PRESETS[preset];
+
+    // Optimize image locally before uploading
+    const optimized = await optimizeImage(base64Data, {
+      maxWidth: optimizationSettings.maxWidth,
+      maxHeight: optimizationSettings.maxHeight,
+      quality: optimizationSettings.quality,
+      format: optimizationSettings.format,
+    });
+
+    console.log(
+      `Image optimized: ${(optimized.originalSize / 1024).toFixed(1)}KB → ${(optimized.optimizedSize / 1024).toFixed(1)}KB (${optimized.compressionRatio}% reduction)`
+    );
+
+    // Upload optimized image to Cloudinary
+    const result = await cloudinary.uploader.upload(optimized.base64, {
       folder,
       resource_type: "image",
+      format: optimized.format,
       transformation: [
-        { width: 1200, height: 1200, crop: "limit" },
-        { quality: "auto:good" },
+        { quality: "auto:best" },
         { fetch_format: "auto" },
       ],
     });
@@ -58,6 +83,59 @@ export async function uploadImage(
     return {
       url: result.secure_url,
       publicId: result.public_id,
+      width: optimized.width,
+      height: optimized.height,
+      format: optimized.format,
+      originalSize: optimized.originalSize,
+      optimizedSize: optimized.optimizedSize,
+      compressionRatio: optimized.compressionRatio,
+    };
+  } catch (error) {
+    console.error("Cloudinary upload error:", error);
+    return null;
+  }
+}
+
+/**
+ * Upload image with custom optimization options
+ */
+export async function uploadImageWithOptions(
+  base64Data: string,
+  folder: string = "myluxury",
+  options: OptimizationOptions = {}
+): Promise<UploadResult | null> {
+  if (!isCloudinaryConfigured()) {
+    console.warn("Cloudinary not configured - skipping image upload");
+    return null;
+  }
+
+  try {
+    // Optimize image with custom options
+    const optimized = await optimizeImage(base64Data, options);
+
+    console.log(
+      `Image optimized: ${(optimized.originalSize / 1024).toFixed(1)}KB → ${(optimized.optimizedSize / 1024).toFixed(1)}KB (${optimized.compressionRatio}% reduction)`
+    );
+
+    const result = await cloudinary.uploader.upload(optimized.base64, {
+      folder,
+      resource_type: "image",
+      format: optimized.format,
+      transformation: [
+        { quality: "auto:best" },
+        { fetch_format: "auto" },
+      ],
+    });
+
+    return {
+      url: result.secure_url,
+      publicId: result.public_id,
+      width: optimized.width,
+      height: optimized.height,
+      format: optimized.format,
+      originalSize: optimized.originalSize,
+      optimizedSize: optimized.optimizedSize,
+      compressionRatio: optimized.compressionRatio,
     };
   } catch (error) {
     console.error("Cloudinary upload error:", error);

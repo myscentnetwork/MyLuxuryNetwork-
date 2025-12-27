@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
             id: wholesaler.id,
             name: wholesaler.name || wholesaler.companyName || username,
             type: "wholesaler",
+            username: wholesaler.username || "",
           },
         });
       }
@@ -69,6 +70,7 @@ export async function POST(request: NextRequest) {
             id: reseller.id,
             name: reseller.name || reseller.shopName || username,
             type: "reseller",
+            username: reseller.username || "",
           },
         });
       }
@@ -93,6 +95,7 @@ export async function POST(request: NextRequest) {
             id: retailer.id,
             name: retailer.name || username,
             type: "retailer",
+            username: retailer.username || "",
           },
         });
       }

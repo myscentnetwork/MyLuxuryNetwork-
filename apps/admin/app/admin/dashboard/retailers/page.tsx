@@ -34,22 +34,22 @@ function RetailerListContent() {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this retail customer?")) {
+    if (confirm("Are you sure you want to delete this customer?")) {
       try {
         await deleteRetailer(id);
       } catch (error) {
-        alert("Failed to delete retail customer. Please try again.");
+        alert("Failed to delete customer. Please try again.");
       }
     }
   };
 
   const handleApprove = async (id: string) => {
-    if (confirm("Approve this retail customer? They will be able to login after approval.")) {
+    if (confirm("Approve this customer? They will be able to login after approval.")) {
       try {
         setProcessingId(id);
         await approveRetailer(id);
       } catch (error) {
-        alert("Failed to approve retail customer. Please try again.");
+        alert("Failed to approve customer. Please try again.");
       } finally {
         setProcessingId(null);
       }
@@ -57,12 +57,12 @@ function RetailerListContent() {
   };
 
   const handleReject = async (id: string) => {
-    if (confirm("Reject this retail customer? They will not be able to login.")) {
+    if (confirm("Reject this customer? They will not be able to login.")) {
       try {
         setProcessingId(id);
         await rejectRetailer(id);
       } catch (error) {
-        alert("Failed to reject retail customer. Please try again.");
+        alert("Failed to reject customer. Please try again.");
       } finally {
         setProcessingId(null);
       }
@@ -94,7 +94,7 @@ function RetailerListContent() {
 
   return (
     <AdminLayout
-      title="Retail Customers"
+      title="Customers"
       actions={
         <Link
           href="/admin/dashboard/retailers/new"
@@ -103,7 +103,7 @@ function RetailerListContent() {
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Add Retail Customer
+          Add Customer
         </Link>
       }
     >
@@ -122,7 +122,7 @@ function RetailerListContent() {
                   {pendingCount} Pending Approval{pendingCount > 1 ? "s" : ""}
                 </h3>
                 <p className="text-cyan-400/70 text-sm">
-                  New retail customer registration{pendingCount > 1 ? "s" : ""} waiting for your review
+                  New customer registration{pendingCount > 1 ? "s" : ""} waiting for your review
                 </p>
               </div>
             </div>
@@ -147,8 +147,8 @@ function RetailerListContent() {
           <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
-          <h3 className="text-xl font-semibold text-gray-400 mb-2">No retail customers yet</h3>
-          <p className="text-gray-500 mb-6">Get started by adding your first retail customer</p>
+          <h3 className="text-xl font-semibold text-gray-400 mb-2">No customers yet</h3>
+          <p className="text-gray-500 mb-6">Get started by adding your first customer</p>
           <Link
             href="/admin/dashboard/retailers/new"
             className="inline-flex items-center gap-2 bg-luxury-gold hover:bg-yellow-600 text-black font-medium px-6 py-3 rounded-lg transition-colors"
@@ -156,7 +156,7 @@ function RetailerListContent() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Add First Retail Customer
+            Add First Customer
           </Link>
         </div>
       ) : (
@@ -448,7 +448,7 @@ function RetailerListContent() {
 
           {filteredRetailers.length === 0 && (
             <div className="p-8 text-center text-gray-500">
-              No retail customers match your search criteria
+              No customers match your search criteria
             </div>
           )}
         </div>
@@ -560,7 +560,7 @@ function RetailerListContent() {
 export default function RetailerList() {
   return (
     <Suspense fallback={
-      <AdminLayout title="Retailers">
+      <AdminLayout title="Customers">
         <div className="flex items-center justify-center h-96">
           <div className="text-gray-400">Loading...</div>
         </div>

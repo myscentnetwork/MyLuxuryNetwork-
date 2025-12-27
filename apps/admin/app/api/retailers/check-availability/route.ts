@@ -5,68 +5,33 @@ import prisma from "@/lib/db";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const field = searchParams.get("field");
-    const value = searchParams.get("value");
-    const excludeId = searchParams.get("excludeId"); // For edit mode
+    const email = searchParams.get("email");
+    const contactNumber = searchParams.get("contactNumber");
 
-    if (!field || !value) {
-      return NextResponse.json(
-        { error: "Field and value are required" },
-        { status: 400 }
-      );
+    const result: { email?: boolean; contactNumber?: boolean } = {};
+
+    if (email) {
+      const existing = await prisma.retailer.findFirst({
+        where: { email: email.toLowerCase() },
+      });
+      result.email = !existing;
     }
 
-    let isTaken = false;
-
-    switch (field) {
-      case "email": {
-        const existing = await prisma.retailer.findFirst({
-          where: {
-            email: value.toLowerCase(),
-            ...(excludeId ? { NOT: { id: excludeId } } : {}),
-          },
-        });
-        isTaken = !!existing;
-        break;
-      }
-      case "contactNumber": {
-        const cleanNumber = value.replace(/[\s\-\(\)\+]/g, "");
-        const existing = await prisma.retailer.findFirst({
-          where: {
-            OR: [
-              { contactNumber: value },
-              { contactNumber: cleanNumber },
-              { contactNumber: `+91${cleanNumber}` },
-            ],
-            ...(excludeId ? { NOT: { id: excludeId } } : {}),
-          },
-        });
-        isTaken = !!existing;
-        break;
-      }
-      case "whatsappNumber": {
-        const cleanNumber = value.replace(/[\s\-\(\)\+]/g, "");
-        const existing = await prisma.retailer.findFirst({
-          where: {
-            OR: [
-              { whatsappNumber: value },
-              { whatsappNumber: cleanNumber },
-              { whatsappNumber: `+91${cleanNumber}` },
-            ],
-            ...(excludeId ? { NOT: { id: excludeId } } : {}),
-          },
-        });
-        isTaken = !!existing;
-        break;
-      }
-      default:
-        return NextResponse.json(
-          { error: "Invalid field" },
-          { status: 400 }
-        );
+    if (contactNumber) {
+      const cleanNumber = contactNumber.replace(/[\s\-\(\)\+]/g, "");
+      const existing = await prisma.retailer.findFirst({
+        where: {
+          OR: [
+            { contactNumber: contactNumber },
+            { contactNumber: cleanNumber },
+            { contactNumber: `+91${cleanNumber}` },
+          ],
+        },
+      });
+      result.contactNumber = !existing;
     }
 
-    return NextResponse.json({ available: !isTaken });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Error checking availability:", error);
     return NextResponse.json(

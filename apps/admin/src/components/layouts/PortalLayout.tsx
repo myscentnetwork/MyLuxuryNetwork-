@@ -10,6 +10,7 @@ interface UserInfo {
   id: string;
   name: string;
   type: UserType;
+  username: string;
 }
 
 const USER_TYPE_CONFIG = {
@@ -26,7 +27,7 @@ const USER_TYPE_CONFIG = {
     bgColor: "bg-purple-500/20",
   },
   retailer: {
-    label: "Retail Customer",
+    label: "Customer",
     priceLabel: "Offer Price",
     color: "text-green-400",
     bgColor: "bg-green-500/20",
@@ -53,6 +54,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     const userId = cookies["user_id"] || "";
     const userType = (cookies["user_type"] || "retailer") as UserType;
     const userName = decodeURIComponent(cookies["user_name"] || "User");
+    const userUsername = decodeURIComponent(cookies["user_username"] || "");
 
     if (!userId || !userType) {
       router.push("/login");
@@ -63,6 +65,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       id: userId,
       name: userName,
       type: userType,
+      username: userUsername,
     });
     setLoading(false);
   }, [router]);
@@ -71,7 +74,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     document.cookie = "user_id=; path=/; max-age=0";
     document.cookie = "user_type=; path=/; max-age=0";
     document.cookie = "user_name=; path=/; max-age=0";
-    router.push("/login");
+    document.cookie = "user_username=; path=/; max-age=0";
+    router.push("/");
   };
 
   const navItems = [
@@ -123,7 +127,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-luxury-gray">
           <Link href="/portal/dashboard" className="flex items-center gap-2">
-            <span className="text-xl font-bold text-luxury-gold">MyLuxury</span>
+            <span className="text-xl font-bold text-luxury-gold">My Luxury Network</span>
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -141,22 +145,6 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             <div className={`w-2 h-2 rounded-full ${config.color.replace("text-", "bg-")}`}></div>
             <span className={`text-sm font-medium ${config.color}`}>{config.label} Account</span>
           </div>
-        </div>
-
-        {/* DEV: Back to Admin */}
-        <div className="px-4 py-2 border-b border-luxury-gray">
-          <button
-            onClick={() => {
-              document.cookie = "admin_auth=true; path=/";
-              window.location.href = "/admin/dashboard";
-            }}
-            className="w-full px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-400 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Back to Admin
-          </button>
         </div>
 
         {/* Navigation */}
@@ -181,6 +169,26 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             );
           })}
         </nav>
+
+        {/* Store Frontend */}
+        {userInfo?.username && (
+          <div className="px-4 py-3 border-t border-luxury-gray">
+            <a
+              href={`/${userInfo.username}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-luxury-gold/20 text-luxury-gold hover:bg-luxury-gold/30 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              Store Frontend
+              <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+        )}
 
         {/* Logout */}
         <div className="p-4 border-t border-luxury-gray">
@@ -217,26 +225,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             </svg>
           </button>
 
-          <div className="flex items-center gap-4 ml-auto">
-            {/* Price Type Indicator */}
-            <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full ${config.bgColor}`}>
-              <span className={`text-xs font-medium ${config.color}`}>
-                Viewing: {config.priceLabel}
-              </span>
-            </div>
-
-            {/* User Info */}
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-white">{userInfo?.name}</p>
-                <p className={`text-xs ${config.color}`}>{config.label}</p>
-              </div>
-              <div className={`w-10 h-10 rounded-full ${config.bgColor} flex items-center justify-center`}>
-                <span className={`text-lg font-bold ${config.color}`}>
-                  {userInfo?.name?.charAt(0).toUpperCase() || "U"}
-                </span>
-              </div>
-            </div>
+          <div className="flex items-center gap-3 ml-auto">
+            <span className="text-gray-400">Welcome,</span>
+            <span className="text-white font-medium">{userInfo?.name}</span>
           </div>
         </header>
 

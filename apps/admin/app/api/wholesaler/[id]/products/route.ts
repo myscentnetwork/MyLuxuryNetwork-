@@ -26,7 +26,8 @@ export async function GET(
     const transformed = products.map((item) => ({
       id: item.id,
       productId: item.productId,
-      sellingPrice: item.sellingPrice,
+      // Ensure selling price is never below minimum selling price (retailPrice)
+      sellingPrice: Math.max(item.sellingPrice || item.product.retailPrice, item.product.retailPrice),
       isVisible: item.isVisible,
       displayOrder: item.displayOrder,
       createdAt: item.createdAt,
@@ -104,6 +105,7 @@ export async function POST(
     // Calculate final selling price
     let finalSellingPrice = sellingPrice;
     const basePrice = product.wholesalePrice;
+    const minSellingPrice = product.retailPrice;
 
     if (markupType && markupValue) {
       if (markupType === "percentage") {
@@ -113,12 +115,17 @@ export async function POST(
       }
     }
 
+    // Ensure selling price is at least minimum selling price (retailPrice)
+    if (!finalSellingPrice || finalSellingPrice < minSellingPrice) {
+      finalSellingPrice = minSellingPrice;
+    }
+
     // Create the import
     const imported = await prisma.wholesalerProduct.create({
       data: {
         wholesalerId: id,
         productId: productId,
-        sellingPrice: finalSellingPrice || null,
+        sellingPrice: finalSellingPrice,
         isVisible: true,
       },
       include: {
