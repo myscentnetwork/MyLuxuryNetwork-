@@ -21,7 +21,12 @@ export async function GET() {
       billCount: v._count.purchaseBills,
     }));
 
-    return NextResponse.json(transformed);
+    // Add cache headers for faster navigation
+    return NextResponse.json(transformed, {
+      headers: {
+        'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+      },
+    });
   } catch (error) {
     console.error("Error fetching vendors:", error);
     return NextResponse.json({ error: "Failed to fetch vendors" }, { status: 500 });

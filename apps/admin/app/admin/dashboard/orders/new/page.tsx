@@ -7,16 +7,43 @@ import { useRouter } from "next/navigation";
 import {
   useProducts,
   useResellers,
+  useWholesalers,
+  useRetailers,
   useCategories,
   useBrands,
+  useSizes,
 } from "@/src/hooks/entities";
+
+type UserType = "wholesaler" | "reseller" | "retailer";
+
+interface SizeQuantity {
+  sizeId: string;
+  sizeName: string;
+  quantity: number;
+}
+
+interface CombinedUser {
+  id: string;
+  name: string;
+  userType: UserType;
+  contactNumber: string | null;
+  email: string | null;
+  shopName?: string | null;
+  companyName?: string | null;
+  status: string;
+}
 
 interface BillItem {
   id: string;
   productId: string;
   productName: string;
   productSku: string;
+  productImage: string;
+  productSize: string;
+  productCategory: string;
+  productBrand: string;
   quantity: number;
+  sizeQuantities: SizeQuantity[]; // Size-wise quantities
   unitPrice: number;
   discountType: "none" | "percentage" | "amount";
   discountValue: number;
@@ -35,23 +62,65 @@ export default function GenerateOrderBillPage() {
   const router = useRouter();
   const { products, createProduct, fetchProducts } = useProducts();
   const { resellers } = useResellers();
+  const { wholesalers } = useWholesalers();
+  const { retailers } = useRetailers();
   const { categories } = useCategories();
   const { brands } = useBrands();
+  const { sizes } = useSizes();
+
+  // Track which items have expanded size inputs
+  const [expandedSizeInputs, setExpandedSizeInputs] = useState<Set<string>>(new Set());
+
+  // Combine all users into one list with type information
+  const allUsers: CombinedUser[] = [
+    ...wholesalers.map((w) => ({
+      id: w.id,
+      name: w.name,
+      userType: "wholesaler" as UserType,
+      contactNumber: w.contactNumber,
+      email: w.email,
+      companyName: w.companyName,
+      status: w.status,
+    })),
+    ...resellers.map((r) => ({
+      id: r.id,
+      name: r.name,
+      userType: "reseller" as UserType,
+      contactNumber: r.contactNumber,
+      email: r.email,
+      shopName: r.shopName,
+      status: r.status,
+    })),
+    ...retailers.map((r) => ({
+      id: r.id,
+      name: r.name,
+      userType: "retailer" as UserType,
+      contactNumber: r.contactNumber,
+      email: r.email,
+      status: r.status,
+    })),
+  ];
 
   // Form state
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [billDate, setBillDate] = useState("");
   const [billTime, setBillTime] = useState("");
-  const [selectedResellerId, setSelectedResellerId] = useState("");
-  const [resellerSearch, setResellerSearch] = useState("");
-  const [showResellerDropdown, setShowResellerDropdown] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedUserType, setSelectedUserType] = useState<UserType | null>(null);
+  const [userSearch, setUserSearch] = useState("");
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [items, setItems] = useState<BillItem[]>([
     {
       id: `item-${Date.now()}`,
       productId: "",
       productName: "",
       productSku: "",
+      productImage: "",
+      productSize: "",
+      productCategory: "",
+      productBrand: "",
       quantity: 1,
+      sizeQuantities: [],
       unitPrice: 0,
       discountType: "none",
       discountValue: 0,
@@ -74,40 +143,145 @@ export default function GenerateOrderBillPage() {
   // Product search state - auto-show preview when typing
   const [productSearches, setProductSearches] = useState<Record<string, string>>({});
 
-  // Generate invoice number on mount
+  // LocalStorage key for bill data persistence
+  const BILL_STORAGE_KEY = "orderBillDraft";
+
+  // Load persisted data on mount
   useEffect(() => {
-    const now = new Date();
-    const dateStr = (now.toISOString().split("T")[0] || "").replace(/-/g, "");
-    const timeStr = now.getTime().toString().slice(-4);
-    setInvoiceNumber(`INV-${dateStr}-${timeStr}`);
-    setBillDate(now.toISOString().split("T")[0] || "");
-    setBillTime(now.toTimeString().slice(0, 5));
+    const savedData = localStorage.getItem(BILL_STORAGE_KEY);
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed.invoiceNumber) setInvoiceNumber(parsed.invoiceNumber);
+        if (parsed.billDate) setBillDate(parsed.billDate);
+        if (parsed.billTime) setBillTime(parsed.billTime);
+        if (parsed.selectedUserId) setSelectedUserId(parsed.selectedUserId);
+        if (parsed.selectedUserType) setSelectedUserType(parsed.selectedUserType);
+        if (parsed.userSearch) setUserSearch(parsed.userSearch);
+        if (parsed.items && parsed.items.length > 0) setItems(parsed.items);
+      } catch (e) {
+        console.error("Failed to load saved bill data:", e);
+      }
+    } else {
+      // Generate new invoice number only if no saved data
+      const now = new Date();
+      const dateStr = (now.toISOString().split("T")[0] || "").replace(/-/g, "");
+      const timeStr = now.getTime().toString().slice(-4);
+      setInvoiceNumber(`INV-${dateStr}-${timeStr}`);
+      setBillDate(now.toISOString().split("T")[0] || "");
+      setBillTime(now.toTimeString().slice(0, 5));
+    }
   }, []);
 
-  // Filter resellers based on search (show all active and inactive)
-  const filteredResellers = resellers.filter(
-    (r) =>
-      !resellerSearch ||
-      r.name.toLowerCase().includes(resellerSearch.toLowerCase()) ||
-      r.shopName?.toLowerCase().includes(resellerSearch.toLowerCase()) ||
-      r.contactNumber?.includes(resellerSearch) ||
-      r.email?.toLowerCase().includes(resellerSearch.toLowerCase())
+  // Save data to localStorage whenever it changes
+  useEffect(() => {
+    const dataToSave = {
+      invoiceNumber,
+      billDate,
+      billTime,
+      selectedUserId,
+      selectedUserType,
+      userSearch,
+      items,
+    };
+    localStorage.setItem(BILL_STORAGE_KEY, JSON.stringify(dataToSave));
+  }, [invoiceNumber, billDate, billTime, selectedUserId, selectedUserType, userSearch, items]);
+
+  // Clear persisted data
+  const clearPersistedData = () => {
+    localStorage.removeItem(BILL_STORAGE_KEY);
+  };
+
+  // Filter users based on search (show all active and inactive)
+  const filteredUsers = allUsers.filter(
+    (u) =>
+      !userSearch ||
+      u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.shopName?.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.companyName?.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.contactNumber?.includes(userSearch) ||
+      u.email?.toLowerCase().includes(userSearch.toLowerCase())
   );
 
-  // Get selected reseller details
-  const selectedReseller = resellers.find((r) => r.id === selectedResellerId);
+  // Get selected user details
+  const selectedUser = allUsers.find((u) => u.id === selectedUserId && u.userType === selectedUserType);
 
-  // Filter products based on search for each item (show ALL products including inactive/out of stock)
+  // Get price based on user type
+  const getPriceForUserType = (product: typeof products[0], userType: UserType | null = selectedUserType) => {
+    switch (userType) {
+      case "wholesaler":
+        return product.wholesalePrice || 0;
+      case "reseller":
+        return product.resellerPrice || 0;
+      case "retailer":
+        return product.retailPrice || 0;
+      default:
+        return 0;
+    }
+  };
+
+  // Dynamically update prices when user type changes
+  useEffect(() => {
+    if (selectedUserType && items.some(item => item.productId)) {
+      setItems(prevItems =>
+        prevItems.map(item => {
+          if (!item.productId) return item;
+
+          // Find the product to get the new price
+          const product = products.find(p => p.id === item.productId);
+          if (!product) return item;
+
+          const newUnitPrice = getPriceForUserType(product, selectedUserType);
+          const subtotal = item.quantity * newUnitPrice;
+
+          let discountAmount = 0;
+          if (item.discountType === "percentage") {
+            discountAmount = (subtotal * item.discountValue) / 100;
+          } else if (item.discountType === "amount") {
+            discountAmount = item.discountValue;
+          }
+
+          return {
+            ...item,
+            unitPrice: newUnitPrice,
+            discountAmount,
+            total: Math.max(0, subtotal - discountAmount),
+          };
+        })
+      );
+    }
+  }, [selectedUserType, products]);
+
+  // Filter products based on search and user type (only show products with price set for selected user type)
   const getFilteredProducts = (itemId: string) => {
     const search = productSearches[itemId] || "";
-    return products.filter(
-      (p) =>
+    return products.filter((p) => {
+      // Check if product has price for selected user type
+      const hasValidPrice = (() => {
+        if (!selectedUserType) return true; // Show all if no user selected
+        switch (selectedUserType) {
+          case "wholesaler":
+            return p.wholesalePrice && p.wholesalePrice > 0;
+          case "reseller":
+            return p.resellerPrice && p.resellerPrice > 0;
+          case "retailer":
+            return p.retailPrice && p.retailPrice > 0;
+          default:
+            return true;
+        }
+      })();
+
+      if (!hasValidPrice) return false;
+
+      // Then apply search filter
+      return (
         !search ||
         p.sku.toLowerCase().includes(search.toLowerCase()) ||
-        p.description?.toLowerCase().includes(search.toLowerCase()) ||
+        p.name?.toLowerCase().includes(search.toLowerCase()) ||
         p.brandName?.toLowerCase().includes(search.toLowerCase()) ||
         p.categoryName?.toLowerCase().includes(search.toLowerCase())
-    );
+      );
+    });
   };
 
   // Add new item row
@@ -117,7 +291,12 @@ export default function GenerateOrderBillPage() {
       productId: "",
       productName: "",
       productSku: "",
+      productImage: "",
+      productSize: "",
+      productCategory: "",
+      productBrand: "",
       quantity: 1,
+      sizeQuantities: [],
       unitPrice: 0,
       discountType: "none",
       discountValue: 0,
@@ -163,13 +342,88 @@ export default function GenerateOrderBillPage() {
   const selectProduct = (itemId: string, productId: string) => {
     const product = products.find((p) => p.id === productId);
     if (product) {
+      const unitPrice = getPriceForUserType(product);
+
+      // Get sizes for this product - first from product, then from category
+      let productSizes = product.sizes || [];
+      if (productSizes.length === 0) {
+        const productCategory = categories.find(c => c.id === product.categoryId);
+        if (productCategory && productCategory.sizeIds && productCategory.sizeIds.length > 0) {
+          productSizes = sizes
+            .filter(s => productCategory.sizeIds.includes(s.id))
+            .map(s => ({ id: s.id, name: s.name }));
+        }
+      }
+
+      // Initialize size quantities
+      const sizeQuantities: SizeQuantity[] = productSizes.map((size) => ({
+        sizeId: size.id,
+        sizeName: size.name,
+        quantity: 0,
+      }));
+
+      // Get sizes as comma-separated string for display
+      const sizeNames = productSizes.map(s => s.name).join(", ") || "";
+
       updateItem(itemId, {
         productId: product.id,
-        productName: product.description || product.sku,
+        productName: product.name || product.sku,
         productSku: product.sku,
+        productImage: product.images?.[0] || "",
+        productSize: sizeNames,
+        productCategory: product.categoryName || "",
+        productBrand: product.brandName || "",
+        unitPrice: unitPrice,
+        sizeQuantities: sizeQuantities,
+        quantity: sizeQuantities.length > 1 ? 0 : 1, // Reset quantity if multiple sizes
       });
       setProductSearches({ ...productSearches, [itemId]: "" });
     }
+  };
+
+  // Toggle size input expansion
+  const toggleSizeInputExpansion = (itemId: string) => {
+    const newExpanded = new Set(expandedSizeInputs);
+    if (newExpanded.has(itemId)) {
+      newExpanded.delete(itemId);
+    } else {
+      newExpanded.add(itemId);
+    }
+    setExpandedSizeInputs(newExpanded);
+  };
+
+  // Handle size quantity change
+  const handleSizeQuantityChange = (itemId: string, sizeIndex: number, quantity: number) => {
+    setItems(prevItems =>
+      prevItems.map(item => {
+        if (item.id !== itemId) return item;
+
+        const newSizeQuantities = [...item.sizeQuantities];
+        if (newSizeQuantities[sizeIndex]) {
+          newSizeQuantities[sizeIndex] = { ...newSizeQuantities[sizeIndex], quantity };
+        }
+
+        // Update total quantity as sum of all size quantities
+        const totalQuantity = newSizeQuantities.reduce((sum, sq) => sum + sq.quantity, 0);
+
+        // Recalculate totals
+        const subtotal = totalQuantity * item.unitPrice;
+        let discountAmount = 0;
+        if (item.discountType === "percentage") {
+          discountAmount = (subtotal * item.discountValue) / 100;
+        } else if (item.discountType === "amount") {
+          discountAmount = item.discountValue;
+        }
+
+        return {
+          ...item,
+          sizeQuantities: newSizeQuantities,
+          quantity: totalQuantity,
+          discountAmount,
+          total: Math.max(0, subtotal - discountAmount),
+        };
+      })
+    );
   };
 
   // Calculate totals
@@ -213,18 +467,23 @@ export default function GenerateOrderBillPage() {
 
   // Save bill
   const handleSave = async () => {
-    if (!selectedResellerId) {
-      alert("Please select a reseller");
+    if (!selectedUserId || !selectedUserType) {
+      alert("Please select a user");
       return;
     }
-    if (items.length === 0) {
+
+    // Filter out empty items (items without a selected product)
+    const validItems = items.filter((item) => item.productId);
+
+    if (validItems.length === 0) {
       alert("Please add at least one product");
       return;
     }
-    if (items.some((item) => !item.productId)) {
-      alert("Please select a product for all items");
-      return;
-    }
+
+    // Calculate totals for valid items only
+    const validSubtotal = validItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const validTotalDiscount = validItems.reduce((sum, item) => sum + item.discountAmount, 0);
+    const validGrandTotal = validItems.reduce((sum, item) => sum + item.total, 0);
 
     setSaving(true);
     try {
@@ -232,8 +491,9 @@ export default function GenerateOrderBillPage() {
         invoiceNumber,
         date: billDate,
         time: billTime,
-        resellerId: selectedResellerId,
-        items: items.map((item) => ({
+        userId: selectedUserId,
+        userType: selectedUserType,
+        items: validItems.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
@@ -242,9 +502,9 @@ export default function GenerateOrderBillPage() {
           discountAmount: item.discountAmount,
           total: item.total,
         })),
-        subtotal,
-        totalDiscount,
-        grandTotal,
+        subtotal: validSubtotal,
+        totalDiscount: validTotalDiscount,
+        grandTotal: validGrandTotal,
         status: "pending",
       };
 
@@ -256,6 +516,8 @@ export default function GenerateOrderBillPage() {
 
       if (!res.ok) throw new Error("Failed to create order bill");
 
+      // Clear persisted data after successful save
+      clearPersistedData();
       router.push("/admin/dashboard/orders");
     } catch (error) {
       alert("Failed to save order bill");
@@ -325,58 +587,72 @@ export default function GenerateOrderBillPage() {
               </label>
               <input
                 type="text"
-                value={resellerSearch}
+                value={userSearch}
                 onChange={(e) => {
-                  setResellerSearch(e.target.value);
-                  setShowResellerDropdown(true);
-                  if (selectedResellerId) {
-                    setSelectedResellerId("");
+                  setUserSearch(e.target.value);
+                  setShowUserDropdown(true);
+                  if (selectedUserId) {
+                    setSelectedUserId("");
+                    setSelectedUserType(null);
                   }
                 }}
-                onFocus={() => setShowResellerDropdown(true)}
-                onBlur={() => setTimeout(() => setShowResellerDropdown(false), 200)}
+                onFocus={() => setShowUserDropdown(true)}
+                onBlur={() => setTimeout(() => setShowUserDropdown(false), 200)}
                 className="w-full px-4 py-3 bg-luxury-gray border border-gray-600 rounded-lg text-white focus:outline-none focus:border-luxury-gold"
                 placeholder="Search by name, shop, phone..."
               />
-              {showResellerDropdown && !selectedResellerId && (
+              {showUserDropdown && !selectedUserId && (
                 <div className="absolute z-10 w-full mt-1 bg-luxury-dark border border-luxury-gray rounded-lg max-h-60 overflow-y-auto shadow-xl">
-                  {filteredResellers.length > 0 ? (
-                    filteredResellers.slice(0, 10).map((reseller) => (
+                  {filteredUsers.length > 0 ? (
+                    filteredUsers.slice(0, 10).map((user) => (
                       <button
-                        key={reseller.id}
+                        key={`${user.userType}-${user.id}`}
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
-                          setSelectedResellerId(reseller.id);
-                          setResellerSearch(reseller.name);
-                          setShowResellerDropdown(false);
+                          setSelectedUserId(user.id);
+                          setSelectedUserType(user.userType);
+                          setUserSearch(user.name);
+                          setShowUserDropdown(false);
                         }}
                         className="w-full px-4 py-3 text-left hover:bg-luxury-gray transition-colors border-b border-gray-700 last:border-0"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-white font-medium">{reseller.name}</span>
-                          <span className={`px-2 py-0.5 text-xs rounded-full ${
-                            reseller.status === "active"
-                              ? "bg-green-500/20 text-green-400"
-                              : "bg-gray-500/20 text-gray-400"
-                          }`}>
-                            {reseller.status}
-                          </span>
+                          <span className="text-white font-medium">{user.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 text-xs rounded-full ${
+                              user.userType === "wholesaler"
+                                ? "bg-blue-500/20 text-blue-400"
+                                : user.userType === "reseller"
+                                ? "bg-purple-500/20 text-purple-400"
+                                : "bg-green-500/20 text-green-400"
+                            }`}>
+                              {user.userType === "wholesaler" ? "Wholesaler" : user.userType === "reseller" ? "Reseller" : "Customer"}
+                            </span>
+                            <span className={`px-2 py-0.5 text-xs rounded-full ${
+                              user.status === "active"
+                                ? "bg-green-500/20 text-green-400"
+                                : "bg-gray-500/20 text-gray-400"
+                            }`}>
+                              {user.status}
+                            </span>
+                          </div>
                         </div>
                         <div className="text-gray-400 text-sm">
-                          {reseller.shopName && `${reseller.shopName} | `}
-                          {reseller.contactNumber}
+                          {user.shopName && `${user.shopName} | `}
+                          {user.companyName && `${user.companyName} | `}
+                          {user.contactNumber}
                         </div>
                       </button>
                     ))
                   ) : (
                     <div className="px-4 py-3 text-gray-400 text-center">
-                      {resellerSearch ? "No users found" : "No users available. Add users first."}
+                      {userSearch ? "No users found" : "No users available. Add users first."}
                     </div>
                   )}
-                  {filteredResellers.length > 10 && (
+                  {filteredUsers.length > 10 && (
                     <div className="px-4 py-2 text-gray-500 text-sm border-t border-gray-700">
-                      +{filteredResellers.length - 10} more users...
+                      +{filteredUsers.length - 10} more users...
                     </div>
                   )}
                 </div>
@@ -384,23 +660,36 @@ export default function GenerateOrderBillPage() {
             </div>
           </div>
 
-          {/* Selected Reseller Info */}
-          {selectedReseller && (
+          {/* Selected User Info */}
+          {selectedUser && (
             <div className="mt-4 p-4 bg-luxury-gray rounded-lg">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-gray-400 text-sm">Selected Reseller:</span>
-                  <div className="text-white font-medium">{selectedReseller.name}</div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-gray-400 text-sm">Selected User:</span>
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${
+                      selectedUserType === "wholesaler"
+                        ? "bg-blue-500/20 text-blue-400"
+                        : selectedUserType === "reseller"
+                        ? "bg-purple-500/20 text-purple-400"
+                        : "bg-green-500/20 text-green-400"
+                    }`}>
+                      {selectedUserType === "wholesaler" ? "Wholesaler" : selectedUserType === "reseller" ? "Reseller" : "Customer"}
+                    </span>
+                  </div>
+                  <div className="text-white font-medium">{selectedUser.name}</div>
                   <div className="text-gray-400 text-sm">
-                    {selectedReseller.shopName && `${selectedReseller.shopName} | `}
-                    {selectedReseller.contactNumber} | {selectedReseller.email}
+                    {selectedUser.shopName && `${selectedUser.shopName} | `}
+                    {selectedUser.companyName && `${selectedUser.companyName} | `}
+                    {selectedUser.contactNumber} {selectedUser.email && `| ${selectedUser.email}`}
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedResellerId("");
-                    setResellerSearch("");
+                    setSelectedUserId("");
+                    setSelectedUserType(null);
+                    setUserSearch("");
                   }}
                   className="text-red-400 hover:text-red-300"
                 >
@@ -450,18 +739,52 @@ export default function GenerateOrderBillPage() {
                       <div>
                         {/* Selected Product Display */}
                         {item.productId ? (
-                          <div className="flex items-center justify-between p-2 bg-luxury-gray border border-gray-600 rounded-lg">
-                            <div>
-                              <p className="text-white text-sm font-medium">{item.productName}</p>
+                          <div className="flex items-center gap-3 p-2 bg-luxury-gray border border-gray-600 rounded-lg">
+                            {/* Product Image */}
+                            <div className="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gray-700">
+                              {item.productImage ? (
+                                <img
+                                  src={item.productImage}
+                                  alt={item.productName}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-500">
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                            {/* Product Info */}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white text-sm font-medium truncate">{item.productName}</p>
                               <p className="text-gray-400 text-xs">SKU: {item.productSku}</p>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                {item.productSize && (
+                                  <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded">
+                                    {item.productSize}
+                                  </span>
+                                )}
+                                {item.productCategory && (
+                                  <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded">
+                                    {item.productCategory}
+                                  </span>
+                                )}
+                                {item.productBrand && (
+                                  <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded">
+                                    {item.productBrand}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <button
                               type="button"
                               onClick={() => {
-                                updateItem(item.id, { productId: "", productName: "", productSku: "" });
+                                updateItem(item.id, { productId: "", productName: "", productSku: "", productImage: "", productSize: "", productCategory: "", productBrand: "", sizeQuantities: [], quantity: 1 });
                                 setProductSearches({ ...productSearches, [item.id]: "" });
                               }}
-                              className="text-gray-400 hover:text-red-400 p-1"
+                              className="text-gray-400 hover:text-red-400 p-1 flex-shrink-0"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -526,7 +849,7 @@ export default function GenerateOrderBillPage() {
                                             {product.images && product.images[0] ? (
                                               <img
                                                 src={product.images[0]}
-                                                alt={product.description || product.sku}
+                                                alt={product.name || product.sku}
                                                 className="w-full h-full object-cover"
                                               />
                                             ) : (
@@ -540,13 +863,21 @@ export default function GenerateOrderBillPage() {
                                           {/* Product Info */}
                                           <div className="flex-1 min-w-0">
                                             <p className="text-white text-xs font-medium line-clamp-1">
-                                              {product.description || product.sku}
+                                              {product.name || product.sku}
                                             </p>
                                             <p className="text-gray-500 text-xs">SKU: {product.sku}</p>
-                                            <div className="flex items-center gap-1 mt-0.5">
+                                            <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                                               <span className="text-amber-500 text-xs truncate">{product.brandName}</span>
                                               <span className="text-gray-600">•</span>
                                               <span className="text-gray-400 text-xs truncate">{product.categoryName}</span>
+                                              {product.sizes && product.sizes.length > 0 && (
+                                                <>
+                                                  <span className="text-gray-600">•</span>
+                                                  <span className="text-blue-400 text-xs truncate">
+                                                    {product.sizes.map(s => s.name).join(", ")}
+                                                  </span>
+                                                </>
+                                              )}
                                             </div>
                                           </div>
                                         </button>
@@ -586,15 +917,88 @@ export default function GenerateOrderBillPage() {
                       </div>
                     </td>
 
-                    {/* Quantity */}
+                    {/* Quantity - with size popup for multi-size products */}
                     <td className="py-3 px-2">
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => updateItem(item.id, { quantity: parseInt(e.target.value) || 1 })}
-                        className="w-full px-3 py-2 bg-luxury-gray border border-gray-600 rounded-lg text-white text-sm text-center focus:outline-none focus:border-luxury-gold"
-                      />
+                      {item.sizeQuantities.length > 1 ? (
+                        <div className="space-y-2">
+                          {/* Clickable quantity display with size indicator */}
+                          <button
+                            type="button"
+                            onClick={() => toggleSizeInputExpansion(item.id)}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all w-full justify-center ${
+                              expandedSizeInputs.has(item.id)
+                                ? "bg-luxury-gold/20 border border-luxury-gold text-luxury-gold"
+                                : item.quantity === 0
+                                ? "bg-orange-500/20 border border-orange-500 text-orange-400 hover:bg-orange-500/30"
+                                : "bg-luxury-gray border border-gray-600 text-white hover:border-luxury-gold hover:text-luxury-gold"
+                            }`}
+                            title={`Click to enter quantity for ${item.sizeQuantities.length} sizes`}
+                          >
+                            {item.quantity === 0 ? (
+                              <span className="text-xs">Enter Sizes</span>
+                            ) : (
+                              <span className="font-medium">{item.quantity}</span>
+                            )}
+                            <svg
+                              className={`w-4 h-4 transition-transform ${expandedSizeInputs.has(item.id) ? "rotate-180" : ""}`}
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          {/* Size count badge */}
+                          {!expandedSizeInputs.has(item.id) && (
+                            <p className="text-xs text-gray-500 text-center">{item.sizeQuantities.length} sizes</p>
+                          )}
+
+                          {/* Expanded size inputs */}
+                          {expandedSizeInputs.has(item.id) && (
+                            <div className="bg-luxury-gray/30 border border-gray-600 rounded-lg p-3 space-y-2 min-w-[180px]">
+                              <p className="text-xs text-gray-400 font-medium border-b border-gray-600 pb-2">Enter quantity for each size:</p>
+                              <div className="space-y-1.5">
+                                {item.sizeQuantities.map((sq, sizeIdx) => (
+                                  <div key={sq.sizeId} className="flex items-center justify-between gap-3 bg-luxury-dark rounded-lg px-3 py-2">
+                                    <span className="text-sm text-gray-300 font-medium">{sq.sizeName}</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={sq.quantity || ""}
+                                      onChange={(e) => handleSizeQuantityChange(item.id, sizeIdx, parseInt(e.target.value) || 0)}
+                                      className="w-16 px-2 py-1.5 bg-luxury-gray border border-gray-500 rounded text-white text-center focus:outline-none focus:ring-1 focus:ring-luxury-gold"
+                                      placeholder="0"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex items-center justify-between pt-2 border-t border-gray-600">
+                                <div className="text-sm text-gray-400">
+                                  Total: <span className="text-luxury-gold font-semibold">{item.quantity}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleSizeInputExpansion(item.id)}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-luxury-gold text-black text-xs font-medium rounded-lg hover:bg-yellow-500 transition-colors"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  Done
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateItem(item.id, { quantity: parseInt(e.target.value) || 1 })}
+                          className="w-full px-3 py-2 bg-luxury-gray border border-gray-600 rounded-lg text-white text-sm text-center focus:outline-none focus:border-luxury-gold"
+                        />
+                      )}
                     </td>
 
                     {/* Unit Price */}
@@ -714,8 +1118,47 @@ export default function GenerateOrderBillPage() {
           </Link>
           <button
             type="button"
+            onClick={() => {
+              if (confirm("Are you sure you want to clear all bill data? This cannot be undone.")) {
+                clearPersistedData();
+                // Reset form to initial state
+                const now = new Date();
+                const dateStr = (now.toISOString().split("T")[0] || "").replace(/-/g, "");
+                const timeStr = now.getTime().toString().slice(-4);
+                setInvoiceNumber(`INV-${dateStr}-${timeStr}`);
+                setBillDate(now.toISOString().split("T")[0] || "");
+                setBillTime(now.toTimeString().slice(0, 5));
+                setSelectedUserId("");
+                setSelectedUserType(null);
+                setUserSearch("");
+                setItems([{
+                  id: `item-${Date.now()}`,
+                  productId: "",
+                  productName: "",
+                  productSku: "",
+                  productImage: "",
+                  productSize: "",
+                  productCategory: "",
+                  productBrand: "",
+                  quantity: 1,
+                  sizeQuantities: [],
+                  unitPrice: 0,
+                  discountType: "none",
+                  discountValue: 0,
+                  discountAmount: 0,
+                  total: 0,
+                }]);
+                setProductSearches({});
+              }
+            }}
+            className="px-6 py-3 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
+          >
+            Clear Draft
+          </button>
+          <button
+            type="button"
             onClick={handleSave}
-            disabled={saving || !selectedResellerId || items.length === 0}
+            disabled={saving || !selectedUserId || items.length === 0}
             className="px-6 py-3 bg-luxury-gold text-black rounded-lg hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
             {saving ? "Saving..." : "Generate Bill"}

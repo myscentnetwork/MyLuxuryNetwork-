@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AdminLayout from "@/src/components/layouts/AdminLayout";
-import { useVendors } from "@/src/hooks/entities";
+import { useVendors, useCategories, useSizes } from "@/src/hooks/entities";
 import { useProducts, Product } from "@/src/hooks/entities";
 
 interface SizeQuantity {
@@ -31,6 +31,8 @@ export default function AddPurchaseBill() {
   const router = useRouter();
   const { vendors, loading: vendorsLoading } = useVendors();
   const { products, loading: productsLoading } = useProducts();
+  const { categories, loading: categoriesLoading } = useCategories();
+  const { sizes, loading: sizesLoading } = useSizes();
   const [searchTerm, setSearchTerm] = useState("");
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -51,7 +53,7 @@ export default function AddPurchaseBill() {
     status: "pending" as "pending" | "paid" | "cancelled",
   });
 
-  const loading = vendorsLoading || productsLoading;
+  const loading = vendorsLoading || productsLoading || categoriesLoading || sizesLoading;
   const activeVendors = vendors.filter((v) => v.status === "active");
 
   // Get selected vendor
@@ -113,8 +115,23 @@ export default function AddPurchaseBill() {
       return;
     }
 
-    // Initialize size quantities from product sizes
-    const sizeQuantities: SizeQuantity[] = (product.sizes || []).map((size) => ({
+    // Get sizes for this product
+    // First try product's own sizes, then fall back to category's sizes
+    let productSizes = product.sizes || [];
+
+    // If product has no sizes, get sizes from its category
+    if (productSizes.length === 0) {
+      const productCategory = categories.find(c => c.id === product.categoryId);
+      if (productCategory && productCategory.sizeIds && productCategory.sizeIds.length > 0) {
+        // Get the actual size objects from the sizes list
+        productSizes = sizes
+          .filter(s => productCategory.sizeIds.includes(s.id))
+          .map(s => ({ id: s.id, name: s.name }));
+      }
+    }
+
+    // Initialize size quantities from product/category sizes
+    const sizeQuantities: SizeQuantity[] = productSizes.map((size) => ({
       sizeId: size.id,
       sizeName: size.name,
       quantity: 0, // Start with 0, user will enter quantity for each size
@@ -484,130 +501,131 @@ export default function AddPurchaseBill() {
               </div>
             )}
 
-            {/* Product Search */}
+            {/* Product Search - Similar to orders/new */}
             {selectedVendor && (
               <div className="relative">
-                <label className="block text-sm font-medium text-gray-300 mb-2">Search Product by SKU or Name</label>
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setShowProductDropdown(e.target.value.length > 0);
-                  }}
-                  onFocus={() => searchTerm.length > 0 && setShowProductDropdown(true)}
-                  placeholder="Type SKU or product name to search..."
-                  className="w-full px-4 py-3 bg-luxury-gray border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-luxury-gold focus:border-transparent"
-                />
-
-                {/* Product Dropdown */}
-                {showProductDropdown && filteredProducts.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-luxury-gray border border-gray-600 rounded-lg shadow-xl max-h-80 overflow-y-auto">
-                    {filteredProducts.slice(0, 10).map((product) => (
-                      <button
-                        key={product.id}
-                        type="button"
-                        onClick={() => handleAddProduct(product)}
-                        className="w-full px-4 py-3 text-left hover:bg-luxury-gold/20 transition-colors flex items-center gap-3"
-                      >
-                        {/* Product Image */}
-                        <div className="w-12 h-12 bg-luxury-dark rounded-lg overflow-hidden flex-shrink-0">
-                          {product.images?.[0] ? (
-                            <img
-                              src={product.images[0]}
-                              alt={product.sku || "Product"}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                        {/* Product Info */}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white font-medium truncate">{product.brandName}</p>
-                          <p className="text-gray-400 text-sm">{product.categoryName}</p>
-                        </div>
-                        {/* SKU Badge */}
-                        {product.sku && (
-                          <span className="px-2 py-1 bg-gray-700 text-gray-300 text-xs font-mono rounded flex-shrink-0">
-                            {product.sku}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {showProductDropdown && searchTerm.length > 0 && filteredProducts.length === 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-luxury-gray border border-gray-600 rounded-lg shadow-xl p-4">
-                    <p className="text-gray-400 text-center">No products found</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Available Products Grid */}
-            {selectedVendor && vendorProducts.length > 0 && !searchTerm && (
-              <div>
-                <h4 className="text-sm font-medium text-gray-300 mb-3">
-                  Available Products {selectedCategoryFilter !== "all" && `in ${selectedVendor.categoryNames[selectedVendor.categoryIds.indexOf(selectedCategoryFilter)]}`}
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-80 overflow-y-auto">
-                  {filteredProducts.slice(0, 20).map((product) => {
-                    const isAdded = formData.items.some((item) => item.productId === product.id);
-                    return (
-                      <button
-                        key={product.id}
-                        type="button"
-                        onClick={() => !isAdded && handleAddProduct(product)}
-                        disabled={isAdded}
-                        className={`relative p-3 rounded-lg border transition-all text-left ${
-                          isAdded
-                            ? "bg-green-500/10 border-green-500/50 cursor-not-allowed"
-                            : "bg-luxury-gray/50 border-gray-600 hover:border-luxury-gold hover:bg-luxury-gold/10"
-                        }`}
-                      >
-                        {/* Added Badge */}
-                        {isAdded && (
-                          <div className="absolute top-2 right-2">
-                            <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                            </svg>
-                          </div>
-                        )}
-                        {/* Product Image */}
-                        <div className="w-full aspect-square bg-luxury-dark rounded-lg overflow-hidden mb-2">
-                          {product.images?.[0] ? (
-                            <img
-                              src={product.images[0]}
-                              alt={product.sku || "Product"}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <svg className="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                        {/* SKU */}
-                        {product.sku && (
-                          <p className="text-luxury-gold text-xs font-mono truncate">{product.sku}</p>
-                        )}
-                        {/* Brand */}
-                        <p className="text-gray-400 text-xs truncate">{product.brandName}</p>
-                      </button>
-                    );
-                  })}
+                <label className="block text-sm font-medium text-gray-300 mb-2">Search Product by SKU, Brand or Category</label>
+                <div className="relative">
+                  <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      setShowProductDropdown(e.target.value.length > 0);
+                    }}
+                    onFocus={() => searchTerm.length > 0 && setShowProductDropdown(true)}
+                    placeholder="Type to search products..."
+                    className="w-full pl-12 pr-10 py-3 bg-luxury-gray border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-luxury-gold focus:border-transparent"
+                  />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchTerm("");
+                        setShowProductDropdown(false);
+                      }}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
-                {filteredProducts.length > 20 && (
-                  <p className="text-gray-500 text-sm text-center mt-3">
-                    Showing 20 of {filteredProducts.length} products. Use search to find specific items.
+
+                {/* Product Preview - Shows when typing (similar to orders/new) */}
+                {searchTerm.length > 0 && (
+                  <div className="mt-3 bg-luxury-dark border border-luxury-gray rounded-xl overflow-hidden">
+                    {/* Search results count */}
+                    <div className="px-4 py-2 bg-luxury-gray/50 border-b border-gray-700 flex items-center justify-between">
+                      <p className="text-sm text-gray-400">
+                        {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
+                        {selectedCategoryFilter !== "all" && ` in ${selectedVendor.categoryNames[selectedVendor.categoryIds.indexOf(selectedCategoryFilter)]}`}
+                      </p>
+                      <p className="text-xs text-gray-500">Click to add</p>
+                    </div>
+                    {/* Products grid */}
+                    <div className="max-h-72 overflow-y-auto p-3">
+                      {filteredProducts.length > 0 ? (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                          {filteredProducts.slice(0, 16).map((product) => {
+                            const isAdded = formData.items.some((item) => item.productId === product.id);
+                            return (
+                              <button
+                                key={product.id}
+                                type="button"
+                                onClick={() => !isAdded && handleAddProduct(product)}
+                                disabled={isAdded}
+                                className={`flex items-start gap-2 p-2 rounded-lg transition-colors text-left border ${
+                                  isAdded
+                                    ? "bg-green-500/10 border-green-500/50 cursor-not-allowed"
+                                    : "border-transparent hover:bg-luxury-gray hover:border-luxury-gold/50"
+                                }`}
+                              >
+                                {/* Product Image */}
+                                <div className="w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-gray-700 relative">
+                                  {product.images?.[0] ? (
+                                    <img
+                                      src={product.images[0]}
+                                      alt={product.sku || "Product"}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-500">
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                      </svg>
+                                    </div>
+                                  )}
+                                  {isAdded && (
+                                    <div className="absolute inset-0 bg-green-500/30 flex items-center justify-center">
+                                      <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                                      </svg>
+                                    </div>
+                                  )}
+                                </div>
+                                {/* Product Info */}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-luxury-gold text-xs font-mono truncate">{product.sku}</p>
+                                  <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                                    <span className="text-white text-xs truncate">{product.brandName}</span>
+                                    <span className="text-gray-600">•</span>
+                                    <span className="text-gray-400 text-xs truncate">{product.categoryName}</span>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="py-8 text-center">
+                          <svg className="w-12 h-12 text-gray-600 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className="text-gray-400">No products found</p>
+                          <p className="text-gray-500 text-sm mt-1">Try different keywords</p>
+                        </div>
+                      )}
+                    </div>
+                    {filteredProducts.length > 16 && (
+                      <div className="px-4 py-2 text-gray-500 text-sm border-t border-gray-700 text-center bg-luxury-gray/30">
+                        +{filteredProducts.length - 16} more products
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Initial hint when empty */}
+                {searchTerm.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Type to search by SKU, brand name, or category • {vendorProducts.length} products available
                   </p>
                 )}
               </div>
@@ -661,17 +679,24 @@ export default function AddPurchaseBill() {
                           {/* Collapsible size-wise quantity input */}
                           {item.sizeQuantities.length > 1 ? (
                             <div className="space-y-2">
-                              {/* Clickable quantity display */}
+                              {/* Clickable quantity display with size indicator */}
                               <button
                                 type="button"
                                 onClick={() => toggleSizeInputExpansion(index)}
                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
                                   expandedSizeInputs.has(index)
                                     ? "bg-luxury-gold/20 border border-luxury-gold text-luxury-gold"
+                                    : item.quantity === 0
+                                    ? "bg-orange-500/20 border border-orange-500 text-orange-400 hover:bg-orange-500/30"
                                     : "bg-luxury-gray border border-gray-600 text-white hover:border-luxury-gold hover:text-luxury-gold"
                                 }`}
+                                title={`Click to enter quantity for ${item.sizeQuantities.length} sizes`}
                               >
-                                <span className="font-medium min-w-[24px]">{item.quantity}</span>
+                                {item.quantity === 0 ? (
+                                  <span className="text-xs">Enter Sizes</span>
+                                ) : (
+                                  <span className="font-medium min-w-[24px]">{item.quantity}</span>
+                                )}
                                 <svg
                                   className={`w-4 h-4 transition-transform ${expandedSizeInputs.has(index) ? "rotate-180" : ""}`}
                                   fill="none"
@@ -681,6 +706,10 @@ export default function AddPurchaseBill() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                 </svg>
                               </button>
+                              {/* Size count badge */}
+                              {!expandedSizeInputs.has(index) && (
+                                <p className="text-xs text-gray-500">{item.sizeQuantities.length} sizes available</p>
+                              )}
 
                               {/* Expanded size inputs - Vertical layout */}
                               {expandedSizeInputs.has(index) && (

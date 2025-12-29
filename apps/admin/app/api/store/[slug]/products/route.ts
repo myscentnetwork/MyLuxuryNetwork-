@@ -127,6 +127,7 @@ export async function GET(
         // Ensure selling price is never below minimum selling price (retailPrice)
         sellingPrice: Math.max(item.sellingPrice || item.product.retailPrice, item.product.retailPrice),
         status: item.product.status,
+        stockQuantity: item.product.stockQuantity,
         isFeatured: item.product.isFeatured,
         isNewArrival: item.product.isNewArrival,
         isBestSeller: item.product.isBestSeller,
@@ -170,6 +171,7 @@ export async function GET(
         // Ensure selling price is never below minimum selling price (retailPrice)
         sellingPrice: Math.max(item.sellingPrice || item.product.retailPrice, item.product.retailPrice),
         status: item.product.status,
+        stockQuantity: item.product.stockQuantity,
         isFeatured: item.product.isFeatured,
         isNewArrival: item.product.isNewArrival,
         isBestSeller: item.product.isBestSeller,
@@ -213,6 +215,7 @@ export async function GET(
         // Ensure selling price is never below minimum selling price (retailPrice)
         sellingPrice: Math.max(item.sellingPrice || item.product.retailPrice, item.product.retailPrice),
         status: item.product.status,
+        stockQuantity: item.product.stockQuantity,
         isFeatured: item.product.isFeatured,
         isNewArrival: item.product.isNewArrival,
         isBestSeller: item.product.isBestSeller,

@@ -1,5 +1,31 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { syncNewProduct } from "@/lib/autoImportSync";
+
+// Helper function to get auto-markup settings
+async function getAutoMarkupSettings() {
+  try {
+    const setting = await prisma.appSettings.findUnique({
+      where: { key: "auto_markup_settings" },
+    });
+    if (setting) {
+      return JSON.parse(setting.value);
+    }
+  } catch (e) {
+    console.error("Error fetching auto-markup settings:", e);
+  }
+  return null;
+}
+
+// Helper function to calculate price with markup
+function calculatePriceWithMarkup(costPrice: number, markupType: string, markupValue: number): number {
+  if (!costPrice || costPrice <= 0 || !markupValue || markupValue <= 0) return 0;
+  if (markupType === "percentage") {
+    return Math.round(costPrice + (costPrice * markupValue / 100));
+  } else {
+    return Math.round(costPrice + markupValue);
+  }
+}
 
 // Helper function to recalculate weighted average cost price for a product
 async function recalculateAverageCostPrice(productId: string): Promise<number> {
@@ -51,7 +77,12 @@ export async function GET() {
       vendorCategories: bill.vendor.categories.map((c: { category: { name: string } }) => c.category.name),
     }));
 
-    return NextResponse.json(transformed);
+    // Add cache headers for faster navigation
+    return NextResponse.json(transformed, {
+      headers: {
+        'Cache-Control': 'private, max-age=15, stale-while-revalidate=30',
+      },
+    });
   } catch (error) {
     console.error("Error fetching purchase bills:", error);
     return NextResponse.json({ error: "Failed to fetch purchase bills" }, { status: 500 });
@@ -194,12 +225,63 @@ export async function POST(request: Request) {
 
       // Then recalculate the weighted average cost price from all purchase history
       const averageCostPrice = await recalculateAverageCostPrice(item.productId);
-      await prisma.product.update({
+
+      // Get current product to check if selling prices are already set
+      const currentProduct = await prisma.product.findUnique({
         where: { id: item.productId },
-        data: {
-          costPrice: averageCostPrice,
-        },
+        select: { wholesalePrice: true, resellerPrice: true, retailPrice: true },
       });
+
+      // Build update data with costPrice
+      const priceUpdateData: Record<string, number> = {
+        costPrice: averageCostPrice,
+      };
+
+      // Get auto-markup settings and apply if prices are not set
+      const markupSettings = await getAutoMarkupSettings();
+      if (markupSettings && currentProduct && averageCostPrice > 0) {
+        // Auto-apply wholesale price if not already set
+        if ((currentProduct.wholesalePrice || 0) === 0 && markupSettings.wholesaleMarkupValue > 0) {
+          priceUpdateData.wholesalePrice = calculatePriceWithMarkup(
+            averageCostPrice,
+            markupSettings.wholesaleMarkupType,
+            markupSettings.wholesaleMarkupValue
+          );
+        }
+
+        // Auto-apply reseller price if not already set
+        if ((currentProduct.resellerPrice || 0) === 0 && markupSettings.resellerMarkupValue > 0) {
+          priceUpdateData.resellerPrice = calculatePriceWithMarkup(
+            averageCostPrice,
+            markupSettings.resellerMarkupType,
+            markupSettings.resellerMarkupValue
+          );
+        }
+
+        // Auto-apply retail price if not already set
+        if ((currentProduct.retailPrice || 0) === 0 && markupSettings.retailMarkupValue > 0) {
+          priceUpdateData.retailPrice = calculatePriceWithMarkup(
+            averageCostPrice,
+            markupSettings.retailMarkupType,
+            markupSettings.retailMarkupValue
+          );
+        }
+      }
+
+      const updatedProduct = await prisma.product.update({
+        where: { id: item.productId },
+        data: priceUpdateData,
+      });
+
+      // Sync to auto-import users if prices were set
+      if (priceUpdateData.wholesalePrice || priceUpdateData.resellerPrice || priceUpdateData.retailPrice) {
+        syncNewProduct({
+          id: updatedProduct.id,
+          wholesalePrice: updatedProduct.wholesalePrice,
+          resellerPrice: updatedProduct.resellerPrice,
+          retailPrice: updatedProduct.retailPrice,
+        }).catch(console.error);
+      }
     }
 
     return NextResponse.json({

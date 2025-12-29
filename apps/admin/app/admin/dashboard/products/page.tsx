@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback, memo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import AdminLayout from "@/src/components/layouts/AdminLayout";
@@ -20,8 +20,8 @@ const priceTypeColors: Record<PriceType, string> = {
   retailPrice: "text-purple-400",
 };
 
-// Inline Editable Price Component
-function EditablePrice({
+// Inline Editable Price Component - Memoized
+const EditablePrice = memo(function EditablePrice({
   productId,
   field,
   value,
@@ -118,10 +118,10 @@ function EditablePrice({
       className={`${colorClass} font-medium text-sm hover:bg-luxury-gray/50 px-2 py-1 rounded transition-colors cursor-text text-right w-full`}
       title="Click to edit"
     >
-      {value ? `₹${value.toLocaleString("en-IN")}` : "-"}
+      {value ? `₹${value.toFixed(2)}` : "-"}
     </button>
   );
-}
+});
 
 // Auto Markup Settings Modal
 function AutoMarkupSettingsModal({
@@ -233,12 +233,12 @@ function AutoMarkupSettingsModal({
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-luxury-dark rounded-xl border border-luxury-gray w-full max-w-2xl my-8">
+      <div className="bg-luxury-dark rounded-xl border border-luxury-gray w-full max-w-5xl my-8">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-luxury-gray">
           <div>
             <h3 className="text-lg font-medium text-white">Auto Markup Settings</h3>
-            <p className="text-sm text-gray-400 mt-1">Set default markup for new products</p>
+            <p className="text-sm text-gray-400 mt-1">Set default markup for new products • Prices auto-calculate when cost price is set</p>
           </div>
           <button
             onClick={onClose}
@@ -251,261 +251,248 @@ function AutoMarkupSettingsModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
-          {/* Info Banner */}
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div className="text-sm text-gray-300">
-                <p className="font-medium text-blue-400 mb-1">How Auto Markup Works:</p>
-                <ul className="space-y-1 text-gray-400">
-                  <li>• When a product&apos;s cost price is set, prices will auto-calculate based on these markups</li>
-                  <li>• Only applies if the price is currently ₹0 (not manually set)</li>
-                  <li>• You can always override individual product prices manually</li>
-                </ul>
+        <div className="p-6 space-y-5">
+          {/* Three Price Markups in Landscape Layout */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Wholesale Markup */}
+            <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                <h4 className="text-green-400 font-medium">Wholesale</h4>
               </div>
-            </div>
-          </div>
-
-          {/* Wholesale Markup */}
-          <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-3 h-3 rounded-full bg-green-400"></div>
-              <h4 className="text-green-400 font-medium">Wholesale Price Markup</h4>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-gray-400 text-sm mb-2 block">Markup Type</label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setWholesaleMarkupType("percentage")}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      wholesaleMarkupType === "percentage"
-                        ? "bg-green-600 text-white"
-                        : "bg-luxury-gray text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Percentage (%)
-                  </button>
-                  <button
-                    onClick={() => setWholesaleMarkupType("fixed")}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      wholesaleMarkupType === "fixed"
-                        ? "bg-green-600 text-white"
-                        : "bg-luxury-gray text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Fixed (₹)
-                  </button>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-gray-400 text-xs mb-1.5 block">Markup Type</label>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setWholesaleMarkupType("percentage")}
+                      className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+                        wholesaleMarkupType === "percentage"
+                          ? "bg-green-600 text-white"
+                          : "bg-luxury-gray text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      %
+                    </button>
+                    <button
+                      onClick={() => setWholesaleMarkupType("fixed")}
+                      className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+                        wholesaleMarkupType === "fixed"
+                          ? "bg-green-600 text-white"
+                          : "bg-luxury-gray text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      ₹ Fixed
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-gray-400 text-xs mb-1.5 block">
+                    {wholesaleMarkupType === "percentage" ? "Markup %" : "Amount ₹"}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={wholesaleMarkupValue}
+                      onChange={(e) => setWholesaleMarkupValue(e.target.value)}
+                      placeholder="0"
+                      className="w-full px-3 py-2 bg-luxury-gray border border-gray-600 rounded-lg text-white text-center text-lg font-medium placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      min="0"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                      {wholesaleMarkupType === "percentage" ? "%" : "₹"}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div>
-                <label className="text-gray-400 text-sm mb-2 block">
-                  {wholesaleMarkupType === "percentage" ? "Markup %" : "Markup Amount"}
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={wholesaleMarkupValue}
-                    onChange={(e) => setWholesaleMarkupValue(e.target.value)}
-                    placeholder="e.g., 10"
-                    className="w-full px-4 py-2 bg-luxury-gray border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    min="0"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
-                    {wholesaleMarkupType === "percentage" ? "%" : "₹"}
+              {wholesaleMarkupValue && parseFloat(wholesaleMarkupValue) > 0 && (
+                <div className="mt-3 pt-3 border-t border-green-500/20 text-xs text-gray-400">
+                  ₹{exampleCost.toFixed(2)} →
+                  <span className="text-green-400 font-medium ml-1">
+                    ₹{calcPrice(wholesaleMarkupType, wholesaleMarkupValue).toFixed(2)}
                   </span>
                 </div>
-              </div>
+              )}
             </div>
-            {wholesaleMarkupValue && parseFloat(wholesaleMarkupValue) > 0 && (
-              <div className="mt-3 text-sm text-gray-400">
-                Example: ₹{exampleCost.toLocaleString("en-IN")} cost →
-                <span className="text-green-400 font-medium ml-1">
-                  ₹{calcPrice(wholesaleMarkupType, wholesaleMarkupValue).toLocaleString("en-IN")} wholesale
-                </span>
-              </div>
-            )}
-          </div>
 
-          {/* Reseller Markup */}
-          <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-3 h-3 rounded-full bg-blue-400"></div>
-              <h4 className="text-blue-400 font-medium">Reseller Price Markup</h4>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-gray-400 text-sm mb-2 block">Markup Type</label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setResellerMarkupType("percentage")}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      resellerMarkupType === "percentage"
-                        ? "bg-blue-600 text-white"
-                        : "bg-luxury-gray text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Percentage (%)
-                  </button>
-                  <button
-                    onClick={() => setResellerMarkupType("fixed")}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      resellerMarkupType === "fixed"
-                        ? "bg-blue-600 text-white"
-                        : "bg-luxury-gray text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Fixed (₹)
-                  </button>
+            {/* Reseller Markup */}
+            <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-3 h-3 rounded-full bg-blue-400"></div>
+                <h4 className="text-blue-400 font-medium">Reseller</h4>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-gray-400 text-xs mb-1.5 block">Markup Type</label>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setResellerMarkupType("percentage")}
+                      className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+                        resellerMarkupType === "percentage"
+                          ? "bg-blue-600 text-white"
+                          : "bg-luxury-gray text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      %
+                    </button>
+                    <button
+                      onClick={() => setResellerMarkupType("fixed")}
+                      className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+                        resellerMarkupType === "fixed"
+                          ? "bg-blue-600 text-white"
+                          : "bg-luxury-gray text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      ₹ Fixed
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-gray-400 text-xs mb-1.5 block">
+                    {resellerMarkupType === "percentage" ? "Markup %" : "Amount ₹"}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={resellerMarkupValue}
+                      onChange={(e) => setResellerMarkupValue(e.target.value)}
+                      placeholder="0"
+                      className="w-full px-3 py-2 bg-luxury-gray border border-gray-600 rounded-lg text-white text-center text-lg font-medium placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      min="0"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                      {resellerMarkupType === "percentage" ? "%" : "₹"}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div>
-                <label className="text-gray-400 text-sm mb-2 block">
-                  {resellerMarkupType === "percentage" ? "Markup %" : "Markup Amount"}
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={resellerMarkupValue}
-                    onChange={(e) => setResellerMarkupValue(e.target.value)}
-                    placeholder="e.g., 15"
-                    className="w-full px-4 py-2 bg-luxury-gray border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    min="0"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
-                    {resellerMarkupType === "percentage" ? "%" : "₹"}
+              {resellerMarkupValue && parseFloat(resellerMarkupValue) > 0 && (
+                <div className="mt-3 pt-3 border-t border-blue-500/20 text-xs text-gray-400">
+                  ₹{exampleCost.toFixed(2)} →
+                  <span className="text-blue-400 font-medium ml-1">
+                    ₹{calcPrice(resellerMarkupType, resellerMarkupValue).toFixed(2)}
                   </span>
                 </div>
-              </div>
+              )}
             </div>
-            {resellerMarkupValue && parseFloat(resellerMarkupValue) > 0 && (
-              <div className="mt-3 text-sm text-gray-400">
-                Example: ₹{exampleCost.toLocaleString("en-IN")} cost →
-                <span className="text-blue-400 font-medium ml-1">
-                  ₹{calcPrice(resellerMarkupType, resellerMarkupValue).toLocaleString("en-IN")} reseller
-                </span>
-              </div>
-            )}
-          </div>
 
-          {/* Retail Markup */}
-          <div className="bg-purple-500/5 border border-purple-500/20 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-3 h-3 rounded-full bg-purple-400"></div>
-              <h4 className="text-purple-400 font-medium">Retail Price Markup</h4>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-gray-400 text-sm mb-2 block">Markup Type</label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setRetailMarkupType("percentage")}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      retailMarkupType === "percentage"
-                        ? "bg-purple-600 text-white"
-                        : "bg-luxury-gray text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Percentage (%)
-                  </button>
-                  <button
-                    onClick={() => setRetailMarkupType("fixed")}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      retailMarkupType === "fixed"
-                        ? "bg-purple-600 text-white"
-                        : "bg-luxury-gray text-gray-400 hover:text-white"
-                    }`}
-                  >
-                    Fixed (₹)
-                  </button>
+            {/* Retail Markup */}
+            <div className="bg-purple-500/5 border border-purple-500/20 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-3 h-3 rounded-full bg-purple-400"></div>
+                <h4 className="text-purple-400 font-medium">Retail</h4>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-gray-400 text-xs mb-1.5 block">Markup Type</label>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setRetailMarkupType("percentage")}
+                      className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+                        retailMarkupType === "percentage"
+                          ? "bg-purple-600 text-white"
+                          : "bg-luxury-gray text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      %
+                    </button>
+                    <button
+                      onClick={() => setRetailMarkupType("fixed")}
+                      className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+                        retailMarkupType === "fixed"
+                          ? "bg-purple-600 text-white"
+                          : "bg-luxury-gray text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      ₹ Fixed
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-gray-400 text-xs mb-1.5 block">
+                    {retailMarkupType === "percentage" ? "Markup %" : "Amount ₹"}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={retailMarkupValue}
+                      onChange={(e) => setRetailMarkupValue(e.target.value)}
+                      placeholder="0"
+                      className="w-full px-3 py-2 bg-luxury-gray border border-gray-600 rounded-lg text-white text-center text-lg font-medium placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      min="0"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                      {retailMarkupType === "percentage" ? "%" : "₹"}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div>
-                <label className="text-gray-400 text-sm mb-2 block">
-                  {retailMarkupType === "percentage" ? "Markup %" : "Markup Amount"}
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={retailMarkupValue}
-                    onChange={(e) => setRetailMarkupValue(e.target.value)}
-                    placeholder="e.g., 20"
-                    className="w-full px-4 py-2 bg-luxury-gray border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    min="0"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
-                    {retailMarkupType === "percentage" ? "%" : "₹"}
+              {retailMarkupValue && parseFloat(retailMarkupValue) > 0 && (
+                <div className="mt-3 pt-3 border-t border-purple-500/20 text-xs text-gray-400">
+                  ₹{exampleCost.toFixed(2)} →
+                  <span className="text-purple-400 font-medium ml-1">
+                    ₹{calcPrice(retailMarkupType, retailMarkupValue).toFixed(2)}
                   </span>
                 </div>
-              </div>
+              )}
             </div>
-            {retailMarkupValue && parseFloat(retailMarkupValue) > 0 && (
-              <div className="mt-3 text-sm text-gray-400">
-                Example: ₹{exampleCost.toLocaleString("en-IN")} cost →
-                <span className="text-purple-400 font-medium ml-1">
-                  ₹{calcPrice(retailMarkupType, retailMarkupValue).toLocaleString("en-IN")} retail
-                </span>
-              </div>
-            )}
           </div>
 
           {/* Apply to Existing Products */}
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 space-y-4">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={applyToExisting}
-                onChange={(e) => {
-                  setApplyToExisting(e.target.checked);
-                  if (!e.target.checked) setOverrideExisting(false);
-                }}
-                className="w-5 h-5 mt-0.5 rounded border-gray-600 bg-luxury-gray text-luxury-gold focus:ring-luxury-gold focus:ring-offset-0"
-              />
-              <div>
-                <span className="text-yellow-400 font-medium">Apply to existing products</span>
-                <p className="text-gray-400 text-sm mt-1">
-                  Apply these markups to all products that have a cost price set.
-                </p>
-              </div>
-            </label>
-
-            {applyToExisting && (
-              <label className="flex items-start gap-3 cursor-pointer ml-8">
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+            <div className="flex flex-wrap items-center gap-6">
+              <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={overrideExisting}
-                  onChange={(e) => setOverrideExisting(e.target.checked)}
-                  className="w-5 h-5 mt-0.5 rounded border-gray-600 bg-luxury-gray text-red-500 focus:ring-red-500 focus:ring-offset-0"
+                  checked={applyToExisting}
+                  onChange={(e) => {
+                    setApplyToExisting(e.target.checked);
+                    if (!e.target.checked) setOverrideExisting(false);
+                  }}
+                  className="w-4 h-4 rounded border-gray-600 bg-luxury-gray text-luxury-gold focus:ring-luxury-gold focus:ring-offset-0"
                 />
-                <div>
-                  <span className="text-red-400 font-medium">Override existing prices</span>
-                  <p className="text-gray-400 text-sm mt-1">
-                    Replace ALL prices, including manually set ones. Use with caution!
-                  </p>
-                </div>
+                <span className="text-yellow-400 text-sm font-medium">Apply to existing products</span>
               </label>
-            )}
+
+              {applyToExisting && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={overrideExisting}
+                    onChange={(e) => setOverrideExisting(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-600 bg-luxury-gray text-red-500 focus:ring-red-500 focus:ring-offset-0"
+                  />
+                  <span className="text-red-400 text-sm font-medium">Override existing prices</span>
+                  <span className="text-gray-500 text-xs">(caution!)</span>
+                </label>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-luxury-gray">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-luxury-gray text-white rounded-lg hover:bg-gray-600 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-6 py-2 bg-luxury-gold text-black font-medium rounded-lg hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? "Saving..." : "Save Settings"}
-          </button>
+        <div className="flex items-center justify-between px-6 py-4 border-t border-luxury-gray">
+          <p className="text-xs text-gray-500">
+            <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Only applies to products with ₹0 prices (not manually set)
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-luxury-gray text-white rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-6 py-2 bg-luxury-gold text-black font-medium rounded-lg hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? "Saving..." : "Save Settings"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -655,8 +642,8 @@ function BulkMarkupToolModal({
                 </p>
                 <p className="text-green-400 font-medium">
                   Wholesale Price = {markupType === "percentage"
-                    ? `₹1,000 + (₹1,000 × ${markupValue}%) = ₹${(1000 + (1000 * parseFloat(markupValue) / 100)).toLocaleString("en-IN")}`
-                    : `₹1,000 + ₹${parseFloat(markupValue).toLocaleString("en-IN")} = ₹${(1000 + parseFloat(markupValue)).toLocaleString("en-IN")}`
+                    ? `₹1,000 + (₹1,000 × ${markupValue}%) = ₹${(1000 + (1000 * parseFloat(markupValue) / 100)).toFixed(2)}`
+                    : `₹1,000 + ₹${parseFloat(markupValue).toFixed(2)} = ₹${(1000 + parseFloat(markupValue)).toFixed(2)}`
                   }
                 </p>
               </div>
@@ -1190,25 +1177,25 @@ export default function ProductList() {
   const [bulkPriceType, setBulkPriceType] = useState<PriceType>("wholesalePrice");
   const [showAutoMarkupSettings, setShowAutoMarkupSettings] = useState(false);
 
-  // Open markup modal for a specific product and price type
-  const openMarkupModal = (product: Product, priceType: PriceType) => {
+  // Open markup modal for a specific product and price type - Memoized
+  const openMarkupModal = useCallback((product: Product, priceType: PriceType) => {
     setMarkupProduct(product);
     setMarkupPriceType(priceType);
-  };
+  }, []);
 
-  // Open bulk markup modal for a specific price type
-  const openBulkMarkupModal = (priceType: PriceType) => {
+  // Open bulk markup modal for a specific price type - Memoized
+  const openBulkMarkupModal = useCallback((priceType: PriceType) => {
     setBulkPriceType(priceType);
     setShowBulkMarkup(true);
-  };
+  }, []);
 
-  // Handle wholesale price update from markup modal
-  const handleWholesalePriceUpdate = () => {
+  // Handle wholesale price update from markup modal - Memoized
+  const handleWholesalePriceUpdate = useCallback(() => {
     // Refresh products list after wholesale price update
     fetchProducts();
-  };
+  }, [fetchProducts]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (confirm("Are you sure you want to delete this product?")) {
       try {
         await deleteProduct(id);
@@ -1216,15 +1203,15 @@ export default function ProductList() {
         alert("Failed to delete product");
       }
     }
-  };
+  }, [deleteProduct]);
 
-  const handleToggleStatus = async (id: string) => {
+  const handleToggleStatus = useCallback(async (id: string) => {
     try {
       await toggleStatus(id);
     } catch (error) {
       alert("Failed to update status");
     }
-  };
+  }, [toggleStatus]);
 
   const handleClone = async (id: string) => {
     const productToClone = products.find((p) => p.id === id);
@@ -1261,25 +1248,31 @@ export default function ProductList() {
     }
   };
 
-  const formatDate = (dateString: string) => {
+  // Memoized formatDate function
+  const formatDate = useCallback((dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
-  };
+  }, []);
 
-  const filteredProducts = products.filter((product) => {
-    const matchesFilter = filter === "all" || product.status === filter;
-    const matchesSearch =
-      (product.sku || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (product.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (product.description || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (product.categoryName || "").toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
+  // Memoized filtered products for performance
+  const filteredProducts = useMemo(() => {
+    const searchLower = searchTerm.toLowerCase();
+    return products.filter((product) => {
+      const matchesFilter = filter === "all" || product.status === filter;
+      const matchesSearch =
+        (product.sku || "").toLowerCase().includes(searchLower) ||
+        (product.name || "").toLowerCase().includes(searchLower) ||
+        (product.description || "").toLowerCase().includes(searchLower) ||
+        (product.categoryName || "").toLowerCase().includes(searchLower);
+      return matchesFilter && matchesSearch;
+    });
+  }, [products, filter, searchTerm]);
 
-  const getStatusColor = (status: string) => {
+  // Memoized status color getter
+  const getStatusColor = useCallback((status: string) => {
     switch (status) {
       case "in_stock":
       case "active": // Legacy support
@@ -1291,9 +1284,10 @@ export default function ProductList() {
       default:
         return "bg-gray-500/20 text-gray-400";
     }
-  };
+  }, []);
 
-  const getStatusLabel = (status: string) => {
+  // Memoized status label getter
+  const getStatusLabel = useCallback((status: string) => {
     switch (status) {
       case "in_stock":
       case "active": // Legacy support
@@ -1305,7 +1299,7 @@ export default function ProductList() {
       default:
         return "OUT OF STOCK";
     }
-  };
+  }, []);
 
   return (
     <>
@@ -1610,9 +1604,12 @@ export default function ProductList() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleToggleStatus(product.id)}
-                          className={`px-3 py-1 text-xs rounded-full ${getStatusColor(product.status)}`}
+                          className={`px-3 py-1 text-xs rounded-full ${getStatusColor(product.status)} flex flex-col items-center`}
                         >
-                          {getStatusLabel(product.status)}
+                          <span>{getStatusLabel(product.status)}</span>
+                          {product.status === "in_stock" && product.stockQuantity > 0 && (
+                            <span className="text-[10px] text-green-300 font-medium">Qty: {product.stockQuantity}</span>
+                          )}
                         </button>
                         <span className="text-gray-500 text-xs">{formatDate(product.createdAt)}</span>
                       </div>
@@ -1669,23 +1666,23 @@ export default function ProductList() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-luxury-gray bg-luxury-gray/50">
-                      <th className="text-left px-4 py-3 text-sm font-medium text-gray-400">Image</th>
-                      <th className="text-left px-4 py-3 text-sm font-medium text-gray-400">Product Details</th>
-                      <th className="text-right px-4 py-3 text-sm font-medium text-orange-400">MRP</th>
-                      <th className="text-right px-4 py-3 text-sm font-medium text-gray-400">Avg. Cost</th>
-                      <th className="text-right px-4 py-3 text-sm font-medium text-green-400">Wholesale</th>
-                      <th className="text-right px-4 py-3 text-sm font-medium text-blue-400">Reseller</th>
-                      <th className="text-right px-4 py-3 text-sm font-medium text-purple-400">Retail</th>
-                      <th className="text-left px-4 py-3 text-sm font-medium text-gray-400">Status</th>
-                      <th className="text-left px-4 py-3 text-sm font-medium text-gray-400">Actions</th>
+                      <th className="text-center px-2 py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">IMAGE</th>
+                      <th className="text-left px-2 py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">PRODUCT</th>
+                      <th className="text-right px-2 py-3 text-[10px] font-medium text-orange-400 uppercase tracking-wider whitespace-nowrap">MAXIMUM RETAIL PRICE</th>
+                      <th className="text-right px-2 py-3 text-[10px] font-medium text-luxury-gold uppercase tracking-wider whitespace-nowrap">COST PRICE</th>
+                      <th className="text-right px-2 py-3 text-[10px] font-medium text-green-400 uppercase tracking-wider whitespace-nowrap">WHOLESALE PRICE</th>
+                      <th className="text-right px-2 py-3 text-[10px] font-medium text-blue-400 uppercase tracking-wider whitespace-nowrap">RESELLER PRICE</th>
+                      <th className="text-right px-2 py-3 text-[10px] font-medium text-purple-400 uppercase tracking-wider whitespace-nowrap">CUSTOMER PRICE</th>
+                      <th className="text-center px-2 py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">STATUS</th>
+                      <th className="text-center px-2 py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredProducts.map((product) => (
-                      <tr key={product.id} className="border-b border-luxury-gray hover:bg-luxury-gray/30 transition-colors">
+                      <tr key={product.id} className="border-b border-luxury-gray hover:bg-luxury-gray/30 transition-colors align-middle">
                         {/* Image */}
-                        <td className="px-4 py-3">
-                          <div className="relative w-16 h-16 bg-luxury-gray rounded-lg overflow-hidden">
+                        <td className="px-3 py-2 text-center align-middle">
+                          <div className="relative w-12 h-12 bg-luxury-gray rounded-lg overflow-hidden mx-auto">
                             {product.images && product.images[0] ? (
                               <Image
                                 src={product.images[0]}
@@ -1717,33 +1714,35 @@ export default function ProductList() {
                           </div>
                         </td>
                         {/* Product Details (Name, Category, Sizes, SKU) */}
-                        <td className="px-4 py-3">
-                          <div className="space-y-1">
-                            <p className="text-white font-medium">{product.name || "-"}</p>
-                            <p className="text-gray-400 text-xs">{product.categoryName || "No Category"}</p>
-                            {product.sizes && product.sizes.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {product.sizes.slice(0, 4).map((s) => (
-                                  <span key={s.id} className="px-1.5 py-0.5 bg-luxury-gray text-gray-300 text-xs rounded">
-                                    {s.name}
-                                  </span>
-                                ))}
-                                {product.sizes.length > 4 && (
-                                  <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded">
-                                    +{product.sizes.length - 4}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            {product.sku && (
-                              <span className="px-1.5 py-0.5 bg-gray-700 text-gray-300 text-xs font-mono rounded inline-block mt-1">
-                                {product.sku}
-                              </span>
-                            )}
+                        <td className="px-3 py-2 align-middle">
+                          <div className="flex flex-col gap-0.5">
+                            <p className="text-white font-medium text-sm leading-tight">{product.name || product.sku || "-"}</p>
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-gray-400">{product.categoryName || "No Category"}</span>
+                              <span className="text-gray-600">•</span>
+                              <span className="text-gray-500">{product.brandName || "No Brand"}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              {product.sku && (
+                                <span className="px-1.5 py-0.5 bg-gray-700/50 text-luxury-gold text-[10px] font-mono rounded">
+                                  {product.sku}
+                                </span>
+                              )}
+                              {product.sizes && product.sizes.length > 0 && product.sizes.slice(0, 4).map((size) => (
+                                <span key={size.id} className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] rounded">
+                                  {size.name}
+                                </span>
+                              ))}
+                              {product.sizes && product.sizes.length > 4 && (
+                                <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] rounded">
+                                  +{product.sizes.length - 4}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
                         {/* MRP (Maximum Retail Price) */}
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-3 py-2 text-right align-middle">
                           <EditablePrice
                             productId={product.id}
                             field="mrp"
@@ -1753,19 +1752,19 @@ export default function ProductList() {
                           />
                         </td>
                         {/* Avg. Cost Price (Landing Price) - NOT EDITABLE */}
-                        <td className="px-4 py-3 text-right">
-                          <span className="text-luxury-gold font-medium text-sm px-2 py-1">
-                            {product.costPrice ? `₹${product.costPrice.toLocaleString("en-IN")}` : "-"}
-                          </span>
+                        <td className="px-3 py-2 text-right align-middle">
+                          <div className="text-luxury-gold font-medium text-sm">
+                            {product.costPrice ? `₹${product.costPrice.toFixed(2)}` : "-"}
+                          </div>
                           {product.mrp > 0 && product.costPrice > 0 && (
-                            <div className="text-xs text-red-400 mt-1">
-                              -{((product.mrp - product.costPrice) / product.mrp * 100).toFixed(0)}% | ₹{(product.mrp - product.costPrice).toLocaleString("en-IN")} off
+                            <div className="text-[10px] text-red-400/80">
+                              -{((product.mrp - product.costPrice) / product.mrp * 100).toFixed(2)}% | ₹{(product.mrp - product.costPrice).toFixed(2)}
                             </div>
                           )}
                         </td>
                         {/* Wholesale Price */}
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        <td className="px-3 py-2 text-right align-middle">
+                          <div className="flex items-center justify-end gap-0.5">
                             <EditablePrice
                               productId={product.id}
                               field="wholesalePrice"
@@ -1775,23 +1774,23 @@ export default function ProductList() {
                             />
                             <button
                               onClick={() => openMarkupModal(product, "wholesalePrice")}
-                              className="p-1 text-gray-400 hover:text-green-400 hover:bg-luxury-gray rounded transition-colors"
-                              title="Set Wholesale Markup"
+                              className="p-0.5 text-gray-500 hover:text-green-400 rounded transition-colors"
+                              title="Set Markup"
                             >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                               </svg>
                             </button>
                           </div>
                           {product.wholesalePrice > 0 && product.costPrice > 0 && (
-                            <div className="text-xs text-green-400/70 mt-1">
-                              +{((product.wholesalePrice - product.costPrice) / product.costPrice * 100).toFixed(0)}% | ₹{(product.wholesalePrice - product.costPrice).toLocaleString("en-IN")}
+                            <div className="text-[10px] text-green-400/60">
+                              +{((product.wholesalePrice - product.costPrice) / product.costPrice * 100).toFixed(2)}% | ₹{(product.wholesalePrice - product.costPrice).toFixed(2)}
                             </div>
                           )}
                         </td>
                         {/* Reseller Price */}
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        <td className="px-3 py-2 text-right align-middle">
+                          <div className="flex items-center justify-end gap-0.5">
                             <EditablePrice
                               productId={product.id}
                               field="resellerPrice"
@@ -1801,23 +1800,23 @@ export default function ProductList() {
                             />
                             <button
                               onClick={() => openMarkupModal(product, "resellerPrice")}
-                              className="p-1 text-gray-400 hover:text-blue-400 hover:bg-luxury-gray rounded transition-colors"
-                              title="Set Reseller Markup"
+                              className="p-0.5 text-gray-500 hover:text-blue-400 rounded transition-colors"
+                              title="Set Markup"
                             >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                               </svg>
                             </button>
                           </div>
                           {product.resellerPrice > 0 && product.costPrice > 0 && (
-                            <div className="text-xs text-blue-400/70 mt-1">
-                              +{((product.resellerPrice - product.costPrice) / product.costPrice * 100).toFixed(0)}% | ₹{(product.resellerPrice - product.costPrice).toLocaleString("en-IN")}
+                            <div className="text-[10px] text-blue-400/60">
+                              +{((product.resellerPrice - product.costPrice) / product.costPrice * 100).toFixed(2)}% | ₹{(product.resellerPrice - product.costPrice).toFixed(2)}
                             </div>
                           )}
                         </td>
                         {/* Retail Price */}
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        <td className="px-3 py-2 text-right align-middle">
+                          <div className="flex items-center justify-end gap-0.5">
                             <EditablePrice
                               productId={product.id}
                               field="retailPrice"
@@ -1827,66 +1826,69 @@ export default function ProductList() {
                             />
                             <button
                               onClick={() => openMarkupModal(product, "retailPrice")}
-                              className="p-1 text-gray-400 hover:text-purple-400 hover:bg-luxury-gray rounded transition-colors"
-                              title="Set Retail Markup"
+                              className="p-0.5 text-gray-500 hover:text-purple-400 rounded transition-colors"
+                              title="Set Markup"
                             >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                               </svg>
                             </button>
                           </div>
                           {product.retailPrice > 0 && product.costPrice > 0 && (
-                            <div className="text-xs text-purple-400/70 mt-1">
-                              +{((product.retailPrice - product.costPrice) / product.costPrice * 100).toFixed(0)}% | ₹{(product.retailPrice - product.costPrice).toLocaleString("en-IN")}
+                            <div className="text-[10px] text-purple-400/60">
+                              +{((product.retailPrice - product.costPrice) / product.costPrice * 100).toFixed(2)}% | ₹{(product.retailPrice - product.costPrice).toFixed(2)}
                             </div>
                           )}
                         </td>
                         {/* Status */}
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2 text-center align-middle">
                           <button
                             onClick={() => handleToggleStatus(product.id)}
-                            className={`px-2 py-1 text-xs rounded-full ${getStatusColor(product.status)}`}
+                            className={`px-2.5 py-1 text-[10px] rounded-full ${getStatusColor(product.status)} inline-flex flex-col items-center leading-tight`}
                           >
-                            {getStatusLabel(product.status)}
+                            <span className="font-medium">{getStatusLabel(product.status)}</span>
+                            {product.status === "in_stock" && product.stockQuantity > 0 && (
+                              <span className="text-green-300/80">{product.stockQuantity} pcs</span>
+                            )}
                           </button>
                         </td>
                         {/* Actions */}
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
+                        <td className="px-3 py-2 text-center align-middle">
+                          <div className="inline-flex items-center bg-luxury-gray/50 rounded-lg p-0.5">
                             <button
                               onClick={() => setViewingProduct(product)}
-                              className="p-1.5 text-gray-400 hover:text-purple-400 hover:bg-luxury-gray rounded transition-colors"
-                              title="View Details"
+                              className="p-1 text-gray-400 hover:text-purple-400 hover:bg-luxury-gray rounded transition-colors"
+                              title="View"
                             >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                               </svg>
                             </button>
                             <Link
                               href={`/admin/dashboard/products/edit/${product.id}`}
-                              className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-luxury-gray rounded transition-colors"
+                              className="p-1 text-gray-400 hover:text-blue-400 hover:bg-luxury-gray rounded transition-colors"
                               title="Edit"
                             >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                               </svg>
                             </Link>
                             <button
                               onClick={() => handleClone(product.id)}
-                              className="p-1.5 text-gray-400 hover:text-green-400 hover:bg-luxury-gray rounded transition-colors"
+                              className="p-1 text-gray-400 hover:text-green-400 hover:bg-luxury-gray rounded transition-colors"
                               title="Clone"
                             >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                               </svg>
                             </button>
                             <button
                               onClick={() => handleDelete(product.id)}
-                              className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-luxury-gray rounded transition-colors"
+                              className="p-1 text-gray-400 hover:text-red-400 hover:bg-luxury-gray rounded transition-colors"
                               title="Delete"
                             >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
                             </button>

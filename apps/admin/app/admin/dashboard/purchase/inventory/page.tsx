@@ -131,7 +131,8 @@ export default function ProductInventory() {
     }).format(amount);
   };
 
-  const totalInventoryValue = inventory.reduce((sum, item) => sum + item.totalValue, 0);
+  // Calculate total inventory value based on average cost price (quantity × average cost price)
+  const totalInventoryValue = inventory.reduce((sum, item) => sum + (item.totalQuantity * item.averageCostPrice), 0);
   const totalInventoryQuantity = inventory.reduce((sum, item) => sum + item.totalQuantity, 0);
 
   const handleSort = (column: "name" | "quantity" | "value") => {

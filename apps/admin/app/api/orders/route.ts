@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@repo/database";
 
-// GET all order bills
+// GET all order bills - Optimized with batch user fetching
 export async function GET() {
   try {
     const orders = await prisma.orderBill.findMany({
@@ -20,7 +20,57 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(orders);
+    // Batch fetch all users by type to avoid N+1 queries
+    const wholesalerIds = orders.filter(o => o.userType === "wholesaler").map(o => o.userId);
+    const resellerIds = orders.filter(o => o.userType === "reseller").map(o => o.userId);
+    const retailerIds = orders.filter(o => o.userType === "retailer").map(o => o.userId);
+
+    // Fetch all users in parallel
+    const [wholesalers, resellers, retailers] = await Promise.all([
+      wholesalerIds.length > 0
+        ? prisma.wholesaler.findMany({
+            where: { id: { in: wholesalerIds } },
+            select: { id: true, name: true, companyName: true, contactNumber: true, email: true },
+          })
+        : [],
+      resellerIds.length > 0
+        ? prisma.reseller.findMany({
+            where: { id: { in: resellerIds } },
+            select: { id: true, name: true, shopName: true, contactNumber: true, email: true },
+          })
+        : [],
+      retailerIds.length > 0
+        ? prisma.retailer.findMany({
+            where: { id: { in: retailerIds } },
+            select: { id: true, name: true, contactNumber: true, email: true },
+          })
+        : [],
+    ]);
+
+    // Create lookup maps for O(1) access
+    const wholesalerMap = new Map(wholesalers.map(u => [u.id, u]));
+    const resellerMap = new Map(resellers.map(u => [u.id, u]));
+    const retailerMap = new Map(retailers.map(u => [u.id, u]));
+
+    // Map orders with users
+    const ordersWithUsers = orders.map(order => {
+      let user = null;
+      if (order.userType === "wholesaler") {
+        user = wholesalerMap.get(order.userId) || null;
+      } else if (order.userType === "reseller") {
+        user = resellerMap.get(order.userId) || null;
+      } else if (order.userType === "retailer") {
+        user = retailerMap.get(order.userId) || null;
+      }
+      return { ...order, user };
+    });
+
+    // Add cache headers
+    return NextResponse.json(ordersWithUsers, {
+      headers: {
+        'Cache-Control': 'private, max-age=15, stale-while-revalidate=30',
+      },
+    });
   } catch (error) {
     console.error("Error fetching orders:", error);
     return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500 });
@@ -35,7 +85,8 @@ export async function POST(request: NextRequest) {
       invoiceNumber,
       date,
       time,
-      resellerId,
+      userId,
+      userType,
       items,
       subtotal,
       totalDiscount,
@@ -44,7 +95,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!invoiceNumber || !date || !resellerId || !items || items.length === 0) {
+    if (!invoiceNumber || !date || !userId || !userType || !items || items.length === 0) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -71,7 +122,9 @@ export async function POST(request: NextRequest) {
         invoiceNumber,
         date,
         time,
-        resellerId,
+        userId,
+        userType,
+        resellerId: userType === "reseller" ? userId : null,
         subtotal,
         totalDiscount,
         grandTotal,
@@ -88,22 +141,13 @@ export async function POST(request: NextRequest) {
               total: item.total,
               productId: item.productId,
               productSku: product?.sku || "Unknown",
-              productName: product?.description || product?.sku || "Unknown Product",
+              productName: product?.name || product?.sku || "Unknown Product",
               productImage: product?.images?.[0]?.url || null,
             };
           }),
         },
       },
       include: {
-        reseller: {
-          select: {
-            id: true,
-            name: true,
-            shopName: true,
-            contactNumber: true,
-            email: true,
-          },
-        },
         items: true,
       },
     });

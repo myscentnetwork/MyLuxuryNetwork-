@@ -98,38 +98,44 @@ export async function GET(
       orderBy: { name: "asc" },
     });
 
-    // Get product count per category
+    // Get brand count per category (count distinct brands in each category)
     const categoriesWithCount = await Promise.all(
       categories.map(async (category) => {
-        let count = 0;
+        let brandIds: string[] = [];
 
         if (storeType === "reseller") {
-          count = await prisma.resellerProduct.count({
+          const products = await prisma.resellerProduct.findMany({
             where: {
               resellerId: storeId,
               isVisible: true,
               product: { categoryId: category.id, status: "in_stock" },
             },
+            include: { product: { select: { brandId: true } } },
           });
+          brandIds = [...new Set(products.map((p) => p.product.brandId))];
         } else if (storeType === "wholesaler") {
-          count = await prisma.wholesalerProduct.count({
+          const products = await prisma.wholesalerProduct.findMany({
             where: {
               wholesalerId: storeId,
               isVisible: true,
               product: { categoryId: category.id, status: "in_stock" },
             },
+            include: { product: { select: { brandId: true } } },
           });
+          brandIds = [...new Set(products.map((p) => p.product.brandId))];
         } else if (storeType === "retailer") {
-          count = await prisma.retailerProduct.count({
+          const products = await prisma.retailerProduct.findMany({
             where: {
               retailerId: storeId,
               isVisible: true,
               product: { categoryId: category.id, status: "in_stock" },
             },
+            include: { product: { select: { brandId: true } } },
           });
+          brandIds = [...new Set(products.map((p) => p.product.brandId))];
         }
 
-        return { ...category, productCount: count };
+        return { ...category, brandCount: brandIds.length };
       })
     );
 

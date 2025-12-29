@@ -25,7 +25,12 @@ export async function GET() {
       categories: undefined, // Remove the raw relation
     }));
 
-    return NextResponse.json(transformedSizes);
+    // Add cache headers for faster navigation
+    return NextResponse.json(transformedSizes, {
+      headers: {
+        'Cache-Control': 'private, max-age=60, stale-while-revalidate=120',
+      },
+    });
   } catch (error) {
     console.error("Error fetching sizes:", error);
     return NextResponse.json({ error: "Failed to fetch sizes" }, { status: 500 });

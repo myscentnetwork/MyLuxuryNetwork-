@@ -49,6 +49,7 @@ export function ImageUpload({
 
     for (let i = 0; i < filesToProcess.length; i++) {
       const file = filesToProcess[i];
+      if (!file) continue;
       setUploadProgress(`Optimizing image ${i + 1} of ${filesToProcess.length}...`);
 
       // Read file as base64
@@ -110,9 +111,11 @@ export function ImageUpload({
   const moveImage = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
     const newImages = [...images];
-    const [movedImage] = newImages.splice(fromIndex, 1);
-    newImages.splice(toIndex, 0, movedImage);
-    onChange(newImages);
+    const removed = newImages.splice(fromIndex, 1);
+    if (removed[0]) {
+      newImages.splice(toIndex, 0, removed[0]);
+      onChange(newImages);
+    }
   };
 
   // Set image as primary (move to first position)

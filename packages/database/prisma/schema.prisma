@@ -93,6 +93,16 @@ model Product {
   resellerProducts   ResellerProduct[]
   retailerProducts   RetailerProduct[]
   wholesalerProducts WholesalerProduct[]
+
+  // Performance indexes for faster queries
+  @@index([status])
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([createdAt])
+  @@index([isFeatured])
+  @@index([isNewArrival])
+  @@index([categoryId, status])
+  @@index([brandId, status])
 }
 
 model ProductSize {
@@ -111,6 +121,9 @@ model ProductImage {
   order     Int     @default(0)
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([productId, order])
 }
 
 model ProductTag {
@@ -404,9 +417,20 @@ model OrderBill {
   status        String      @default("pending")
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
-  resellerId    String
-  reseller      Reseller    @relation(fields: [resellerId], references: [id])
+  // Support all user types
+  userId        String
+  userType      String      @default("reseller") // "wholesaler", "reseller", "retailer"
+  // Keep resellerId optional for backward compatibility
+  resellerId    String?
+  reseller      Reseller?   @relation(fields: [resellerId], references: [id])
   items         OrderItem[]
+
+  // Performance indexes
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId])
+  @@index([userType])
+  @@index([resellerId])
 }
 
 model OrderItem {
@@ -423,6 +447,9 @@ model OrderItem {
   orderBillId    String
   productId      String
   orderBill      OrderBill @relation(fields: [orderBillId], references: [id], onDelete: Cascade)
+
+  @@index([orderBillId])
+  @@index([productId])
 }
 
 model PurchaseBill {
@@ -444,6 +471,11 @@ model PurchaseBill {
   vendor             Vendor            @relation(fields: [vendorId], references: [id])
   items              PurchaseItem[]
   payments           PurchasePayment[]
+
+  // Performance indexes
+  @@index([status])
+  @@index([createdAt])
+  @@index([vendorId])
 }
 
 model PurchasePayment {
@@ -473,6 +505,9 @@ model PurchaseItem {
   productId       String
   product         Product      @relation(fields: [productId], references: [id])
   purchaseBill    PurchaseBill @relation(fields: [purchaseBillId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseBillId])
+  @@index([productId])
 }
 
 model AppSettings {

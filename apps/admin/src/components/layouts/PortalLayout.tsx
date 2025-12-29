@@ -95,7 +95,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
     },
     {
-      name: "Orders",
+      name: "My Orders",
       href: "/portal/orders",
       icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
     },
@@ -174,7 +174,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         {userInfo?.username && (
           <div className="px-4 py-3 border-t border-luxury-gray">
             <a
-              href={`/${userInfo.username}`}
+              href={`/${userInfo.username}/products`}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-luxury-gold/20 text-luxury-gold hover:bg-luxury-gold/30 transition-colors"

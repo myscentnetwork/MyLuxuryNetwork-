@@ -601,7 +601,7 @@ export default function PortalProducts() {
                   onClick={openAutoImportModal}
                   className="px-4 py-2 bg-luxury-gray hover:bg-luxury-gold/20 text-gray-300 hover:text-luxury-gold rounded-lg transition-colors text-sm font-medium"
                 >
-                  Update Markup
+                  Auto Import On
                 </button>
                 <button
                   onClick={handleDisableAutoImport}

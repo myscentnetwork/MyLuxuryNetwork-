@@ -77,14 +77,14 @@ export async function POST(request: NextRequest) {
         });
 
         for (const item of products) {
-          const costPrice = item.product.resellerPrice || item.product.wholesalePrice;
           const minSellingPrice = item.product.retailPrice;
           const mrp = item.product.mrp;
 
-          // Calculate new selling price based on markup
+          // Calculate new selling price based on markup (markup is over minSellingPrice)
           let newSellingPrice: number;
           if (markupType === "percentage") {
-            newSellingPrice = minSellingPrice + (costPrice * markupValue / 100);
+            // Percentage is calculated over minSellingPrice
+            newSellingPrice = minSellingPrice + (minSellingPrice * markupValue / 100);
           } else {
             newSellingPrice = minSellingPrice + markupValue;
           }
@@ -132,14 +132,14 @@ export async function POST(request: NextRequest) {
         });
 
         for (const item of products) {
-          const costPrice = item.product.wholesalePrice;
           const minSellingPrice = item.product.retailPrice;
           const mrp = item.product.mrp;
 
-          // Calculate new selling price based on markup
+          // Calculate new selling price based on markup (markup is over minSellingPrice)
           let newSellingPrice: number;
           if (markupType === "percentage") {
-            newSellingPrice = minSellingPrice + (costPrice * markupValue / 100);
+            // Percentage is calculated over minSellingPrice
+            newSellingPrice = minSellingPrice + (minSellingPrice * markupValue / 100);
           } else {
             newSellingPrice = minSellingPrice + markupValue;
           }
@@ -185,14 +185,14 @@ export async function POST(request: NextRequest) {
         });
 
         for (const item of products) {
-          const costPrice = item.product.retailPrice;
           const minSellingPrice = item.product.retailPrice;
           const mrp = item.product.mrp;
 
-          // Calculate new selling price based on markup
+          // Calculate new selling price based on markup (markup is over minSellingPrice)
           let newSellingPrice: number;
           if (markupType === "percentage") {
-            newSellingPrice = minSellingPrice + (costPrice * markupValue / 100);
+            // Percentage is calculated over minSellingPrice
+            newSellingPrice = minSellingPrice + (minSellingPrice * markupValue / 100);
           } else {
             newSellingPrice = minSellingPrice + markupValue;
           }

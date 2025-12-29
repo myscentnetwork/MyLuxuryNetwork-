@@ -4,13 +4,37 @@ import bcrypt from "bcryptjs";
 
 export async function GET() {
   try {
-    // Fetch all user types
+    // Fetch all user types with selected categories for resellers and wholesalers
     const [wholesalers, resellers, retailers] = await Promise.all([
       prisma.wholesaler.findMany({
         orderBy: { createdAt: "desc" },
+        include: {
+          selectedCategories: {
+            include: {
+              category: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
       }),
       prisma.reseller.findMany({
         orderBy: { createdAt: "desc" },
+        include: {
+          selectedCategories: {
+            include: {
+              category: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
       }),
       prisma.retailer.findMany({
         orderBy: { createdAt: "desc" },
@@ -31,6 +55,10 @@ export async function GET() {
         status: w.status,
         registrationStatus: w.registrationStatus,
         createdAt: w.createdAt,
+        selectedCategories: w.selectedCategories.map((sc) => ({
+          id: sc.category.id,
+          name: sc.category.name,
+        })),
       })),
       ...resellers.map((r) => ({
         id: r.id,
@@ -44,6 +72,10 @@ export async function GET() {
         status: r.status,
         registrationStatus: r.registrationStatus,
         createdAt: r.createdAt,
+        selectedCategories: r.selectedCategories.map((sc) => ({
+          id: sc.category.id,
+          name: sc.category.name,
+        })),
       })),
       ...retailers.map((r) => ({
         id: r.id,
@@ -57,10 +89,16 @@ export async function GET() {
         status: r.status,
         registrationStatus: r.registrationStatus,
         createdAt: r.createdAt,
+        selectedCategories: [] as { id: string; name: string }[],
       })),
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    return NextResponse.json({ users });
+    // Add cache headers for faster navigation
+    return NextResponse.json({ users }, {
+      headers: {
+        'Cache-Control': 'private, max-age=15, stale-while-revalidate=30',
+      },
+    });
   } catch (error) {
     console.error("Error fetching users:", error);
     return NextResponse.json(

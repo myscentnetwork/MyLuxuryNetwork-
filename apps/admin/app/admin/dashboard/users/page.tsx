@@ -5,6 +5,11 @@ import AdminLayout from "@/src/components/layouts/AdminLayout";
 
 type UserType = "wholesaler" | "reseller" | "retailer";
 
+interface Category {
+  id: string;
+  name: string;
+}
+
 interface User {
   id: string;
   name: string;
@@ -17,6 +22,7 @@ interface User {
   status: string;
   registrationStatus: string;
   createdAt: string;
+  selectedCategories: Category[];
 }
 
 const USER_TYPE_CONFIG = {
@@ -369,6 +375,7 @@ export default function UsersPage() {
               <tr className="border-b border-luxury-gray">
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">User</th>
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Type</th>
+                <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Categories</th>
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Contact</th>
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Status</th>
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Joined</th>
@@ -378,7 +385,7 @@ export default function UsersPage() {
             <tbody>
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                     No users found
                   </td>
                 </tr>
@@ -402,6 +409,29 @@ export default function UsersPage() {
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${config.bgColor} ${config.color}`}>
                           {config.label}
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {user.selectedCategories && user.selectedCategories.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 max-w-[200px]">
+                            {user.selectedCategories.slice(0, 3).map((cat) => (
+                              <span
+                                key={cat.id}
+                                className="inline-flex items-center px-2 py-0.5 rounded bg-luxury-gray text-gray-300 text-xs"
+                              >
+                                {cat.name}
+                              </span>
+                            ))}
+                            {user.selectedCategories.length > 3 && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded bg-luxury-gold/20 text-luxury-gold text-xs">
+                                +{user.selectedCategories.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-500 text-xs">
+                            {user.userType === "retailer" ? "—" : "No categories"}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm">

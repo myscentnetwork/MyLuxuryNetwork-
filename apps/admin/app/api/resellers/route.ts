@@ -9,7 +9,12 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(resellers);
+    // Add cache headers for faster navigation
+    return NextResponse.json(resellers, {
+      headers: {
+        'Cache-Control': 'private, max-age=15, stale-while-revalidate=30',
+      },
+    });
   } catch (error) {
     console.error("Error fetching resellers:", error);
     return NextResponse.json({ error: "Failed to fetch resellers" }, { status: 500 });

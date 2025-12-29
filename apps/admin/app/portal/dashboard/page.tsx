@@ -19,9 +19,31 @@ interface Product {
   images: string[];
 }
 
+interface DashboardStats {
+  storeProducts: number;
+  visibleProducts: number;
+  hiddenProducts: number;
+  inStockProducts: number;
+  outOfStockProducts: number;
+  totalOrders: number;
+  todayOrders: number;
+  monthOrders: number;
+  pendingOrders: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  totalRevenue: number;
+  todayRevenue: number;
+  monthRevenue: number;
+  pendingRevenue: number;
+  estimatedProfit: number;
+  todayProfit: number;
+  monthProfit: number;
+}
+
 export default function PortalDashboard() {
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [userType, setUserType] = useState<UserType>("retailer");
   const [storeSlug, setStoreSlug] = useState<string>("");
   const [baseUrl, setBaseUrl] = useState<string>("");
@@ -51,6 +73,19 @@ export default function PortalDashboard() {
       fetchStoreInfo(userId, type);
     }
 
+    // Fetch dashboard stats
+    const fetchDashboardStats = async () => {
+      try {
+        const res = await fetch("/api/portal/dashboard-stats");
+        if (res.ok) {
+          const data = await res.json();
+          setStats(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch dashboard stats:", error);
+      }
+    };
+
     // Fetch products
     const fetchProducts = async (userType: string) => {
       try {
@@ -73,6 +108,7 @@ export default function PortalDashboard() {
       setLoading(false);
     };
 
+    fetchDashboardStats();
     fetchProducts(type || "retailer");
   }, []);
 
@@ -126,6 +162,16 @@ export default function PortalDashboard() {
 
   const config = USER_TYPE_CONFIG[userType];
 
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
   const quickActions = [
     {
       name: "Browse Products",
@@ -144,7 +190,7 @@ export default function PortalDashboard() {
       icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
       color: "text-luxury-gold",
       bg: "bg-luxury-gold/20",
-      count: 0,
+      count: stats?.storeProducts || 0,
       countLabel: "Products",
     },
     {
@@ -154,7 +200,7 @@ export default function PortalDashboard() {
       icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
       color: "text-green-400",
       bg: "bg-green-500/20",
-      count: 0,
+      count: stats?.totalOrders || 0,
       countLabel: "Orders",
     },
     {
@@ -233,27 +279,16 @@ export default function PortalDashboard() {
         </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-6">
+      {/* Stats Grid - Row 1: Store & Orders */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-400 text-sm">Available Products</p>
-              <p className="text-2xl font-bold text-white mt-1">{products.length}</p>
-            </div>
-            <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm">My Store</p>
-              <p className="text-2xl font-bold text-luxury-gold mt-1">0</p>
+              <p className="text-gray-400 text-xs uppercase tracking-wider">My Store Products</p>
+              <p className="text-2xl font-bold text-luxury-gold mt-1">{stats?.storeProducts || 0}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {stats?.visibleProducts || 0} visible • {stats?.hiddenProducts || 0} hidden
+              </p>
             </div>
             <div className="w-12 h-12 bg-luxury-gold/20 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-luxury-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -263,11 +298,102 @@ export default function PortalDashboard() {
           </div>
         </div>
 
-        <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-6">
+        <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-400 text-sm">In Stock</p>
-              <p className="text-2xl font-bold text-green-400 mt-1">{inStockCount}</p>
+              <p className="text-gray-400 text-xs uppercase tracking-wider">Total Orders</p>
+              <p className="text-2xl font-bold text-blue-400 mt-1">{stats?.totalOrders || 0}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {stats?.completedOrders || 0} completed • {stats?.pendingOrders || 0} pending
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-xs uppercase tracking-wider">Today&apos;s Orders</p>
+              <p className="text-2xl font-bold text-purple-400 mt-1">{stats?.todayOrders || 0}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {formatCurrency(stats?.todayRevenue || 0)} revenue
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-xs uppercase tracking-wider">This Month</p>
+              <p className="text-2xl font-bold text-green-400 mt-1">{stats?.monthOrders || 0}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {formatCurrency(stats?.monthRevenue || 0)} revenue
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Grid - Row 2: Revenue & Stock */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-xs uppercase tracking-wider">Total Revenue</p>
+              <p className="text-2xl font-bold text-green-400 mt-1">{formatCurrency(stats?.totalRevenue || 0)}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                All time sales
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-xs uppercase tracking-wider">Pending Revenue</p>
+              <p className="text-2xl font-bold text-orange-400 mt-1">{formatCurrency(stats?.pendingRevenue || 0)}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {stats?.pendingOrders || 0} pending orders
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-xs uppercase tracking-wider">Store In Stock</p>
+              <p className="text-2xl font-bold text-green-400 mt-1">{stats?.inStockProducts || 0}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Ready to sell
+              </p>
             </div>
             <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -277,11 +403,14 @@ export default function PortalDashboard() {
           </div>
         </div>
 
-        <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-6">
+        <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-400 text-sm">Out of Stock</p>
-              <p className="text-2xl font-bold text-red-400 mt-1">{outOfStockCount}</p>
+              <p className="text-gray-400 text-xs uppercase tracking-wider">Store Out of Stock</p>
+              <p className="text-2xl font-bold text-red-400 mt-1">{stats?.outOfStockProducts || 0}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Need restocking
+              </p>
             </div>
             <div className="w-12 h-12 bg-red-500/20 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

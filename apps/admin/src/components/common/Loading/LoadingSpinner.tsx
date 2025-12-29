@@ -87,3 +87,120 @@ export function PageLoading({ text = "Loading..." }: PageLoadingProps) {
     </div>
   );
 }
+
+// ============== SKELETON COMPONENTS ==============
+
+/**
+ * Skeleton Pulse Animation Base
+ */
+const skeletonBase = "animate-pulse bg-luxury-gray/50 rounded";
+
+/**
+ * Table Skeleton Component
+ *
+ * Displays a skeleton loading state for tables.
+ *
+ * @example
+ * if (loading) return <TableSkeleton rows={5} columns={4} />;
+ */
+export interface TableSkeletonProps {
+  rows?: number;
+  columns?: number;
+}
+
+export const TableSkeleton = React.memo(function TableSkeleton({
+  rows = 5,
+  columns = 4,
+}: TableSkeletonProps) {
+  return (
+    <div className="bg-luxury-dark rounded-xl border border-luxury-gray overflow-hidden">
+      {/* Header */}
+      <div className="bg-luxury-black p-4 border-b border-luxury-gray">
+        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
+          {Array.from({ length: columns }).map((_, i) => (
+            <div key={i} className={`${skeletonBase} h-4 w-3/4`} />
+          ))}
+        </div>
+      </div>
+      {/* Rows */}
+      {Array.from({ length: rows }).map((_, rowIndex) => (
+        <div
+          key={rowIndex}
+          className="p-4 border-b border-luxury-gray last:border-b-0"
+        >
+          <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
+            {Array.from({ length: columns }).map((_, colIndex) => (
+              <div
+                key={colIndex}
+                className={`${skeletonBase} h-4`}
+                style={{ width: `${60 + Math.random() * 40}%` }}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+});
+
+/**
+ * Card Skeleton Component
+ *
+ * Displays a skeleton loading state for cards.
+ */
+export const CardSkeleton = React.memo(function CardSkeleton() {
+  return (
+    <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-6">
+      <div className={`${skeletonBase} h-6 w-3/4 mb-4`} />
+      <div className={`${skeletonBase} h-4 w-full mb-2`} />
+      <div className={`${skeletonBase} h-4 w-2/3 mb-4`} />
+      <div className={`${skeletonBase} h-10 w-1/3`} />
+    </div>
+  );
+});
+
+/**
+ * Product Grid Skeleton Component
+ *
+ * Displays a skeleton loading state for product grids.
+ */
+export interface ProductGridSkeletonProps {
+  count?: number;
+}
+
+export const ProductGridSkeleton = React.memo(function ProductGridSkeleton({
+  count = 8,
+}: ProductGridSkeletonProps) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="bg-luxury-dark rounded-xl border border-luxury-gray overflow-hidden">
+          <div className={`${skeletonBase} aspect-square`} />
+          <div className="p-4">
+            <div className={`${skeletonBase} h-3 w-1/2 mb-2`} />
+            <div className={`${skeletonBase} h-5 w-3/4 mb-2`} />
+            <div className={`${skeletonBase} h-3 w-1/3 mb-3`} />
+            <div className={`${skeletonBase} h-6 w-1/2 mb-3`} />
+            <div className={`${skeletonBase} h-10 w-full`} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+});
+
+/**
+ * Stats Card Skeleton Component
+ */
+export const StatsCardSkeleton = React.memo(function StatsCardSkeleton() {
+  return (
+    <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className={`${skeletonBase} h-10 w-10 rounded-lg`} />
+        <div className={`${skeletonBase} h-4 w-16`} />
+      </div>
+      <div className={`${skeletonBase} h-8 w-24 mb-2`} />
+      <div className={`${skeletonBase} h-4 w-32`} />
+    </div>
+  );
+});

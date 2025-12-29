@@ -4,27 +4,41 @@
  * @fileoverview CRUD Hook Factory
  * @module hooks/common/useCrudFactory
  *
- * Enterprise CRUD hook factory that eliminates duplication across entity hooks.
+ * Enterprise CRUD hook factory with caching for fast navigation.
  * Provides standardized state management and CRUD operations.
- *
- * @example
- * ```typescript
- * // Basic usage
- * const crud = useCrudFactory<Brand>({
- *   endpoint: '/api/brands',
- *   entityName: 'Brand',
- * });
- *
- * // With transform
- * const crud = useCrudFactory<Product>({
- *   endpoint: '/api/products',
- *   entityName: 'Product',
- *   transform: (item) => ({ ...item, formattedPrice: formatPrice(item.price) }),
- * });
- * ```
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+
+// ============== CACHE & REQUEST DEDUPLICATION ==============
+
+// Global cache for API responses to speed up navigation
+const apiCache = new Map<string, { data: unknown; timestamp: number }>();
+const CACHE_DURATION = 60000; // 60 seconds cache (increased for faster navigation)
+
+// Pending requests map to prevent duplicate API calls
+const pendingRequests = new Map<string, Promise<unknown>>();
+
+function getCachedData<T>(key: string): T[] | null {
+  const cached = apiCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.data as T[];
+  }
+  return null;
+}
+
+function setCachedData<T>(key: string, data: T[]): void {
+  apiCache.set(key, { data, timestamp: Date.now() });
+}
+
+function invalidateCache(key: string): void {
+  apiCache.delete(key);
+}
+
+// Invalidate all related caches (for cross-entity updates)
+export function invalidateAllCaches(): void {
+  apiCache.clear();
+}
 
 // ============== TYPES ==============
 
@@ -68,7 +82,7 @@ export interface CrudState<T> {
  * CRUD actions interface
  */
 export interface CrudActions<T> {
-  fetchItems: () => Promise<void>;
+  fetchItems: (forceRefresh?: boolean) => Promise<void>;
   createItem: (data: Partial<T>) => Promise<T>;
   updateItem: (id: string, data: Partial<T>) => Promise<T>;
   deleteItem: (id: string) => Promise<void>;
@@ -112,31 +126,78 @@ export function useCrudFactory<T extends BaseEntity>(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Ref to track if component is mounted (prevent state updates after unmount)
+  const isMountedRef = useRef(true);
+  // Ref to track if initial fetch has been done
+  const hasFetchedRef = useRef(false);
+  // Ref to store transform function to avoid dependency issues
+  const transformRef = useRef(transform);
+  transformRef.current = transform;
+
   // ============== FETCH ==============
 
   /**
-   * Fetches all items from the API
+   * Fetches all items from the API with caching and request deduplication
    */
-  const fetchItems = useCallback(async () => {
+  const fetchItems = useCallback(async (forceRefresh = false) => {
     try {
-      setLoading(true);
-      const res = await fetch(endpoint);
-      if (!res.ok) throw new Error(`Failed to fetch ${entityName.toLowerCase()}s`);
-      let data = await res.json();
-
-      // Apply transform if provided
-      if (transform) {
-        data = Array.isArray(data) ? data.map(transform) : data;
+      // Check cache first (unless force refresh)
+      if (!forceRefresh) {
+        const cached = getCachedData<T>(endpoint);
+        if (cached) {
+          if (isMountedRef.current) {
+            setItems(cached);
+            setLoading(false);
+            setError(null);
+          }
+          return;
+        }
       }
 
-      setItems(data);
-      setError(null);
+      if (isMountedRef.current) {
+        setLoading(true);
+      }
+
+      // Check if there's already a pending request for this endpoint
+      let pendingRequest = pendingRequests.get(endpoint);
+
+      if (!pendingRequest || forceRefresh) {
+        // Create new request
+        pendingRequest = fetch(endpoint).then(async (res) => {
+          if (!res.ok) throw new Error(`Failed to fetch ${entityName.toLowerCase()}s`);
+          return res.json();
+        });
+        pendingRequests.set(endpoint, pendingRequest);
+      }
+
+      let data = await pendingRequest as T[];
+
+      // Clean up pending request
+      pendingRequests.delete(endpoint);
+
+      // Apply transform if provided (using ref to avoid dependency issues)
+      if (transformRef.current && Array.isArray(data)) {
+        data = data.map(transformRef.current);
+      }
+
+      // Update cache
+      setCachedData(endpoint, data);
+
+      if (isMountedRef.current) {
+        setItems(data);
+        setError(null);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      pendingRequests.delete(endpoint);
+      if (isMountedRef.current) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  }, [endpoint, entityName, transform]);
+  }, [endpoint, entityName]); // Removed transform from dependencies - using ref instead
 
   // ============== CREATE ==============
 
@@ -163,6 +224,8 @@ export function useCrudFactory<T extends BaseEntity>(
         newItem = transform(newItem);
       }
 
+      // Invalidate cache on create
+      invalidateCache(endpoint);
       setItems((prev) => [newItem, ...prev]);
       return newItem;
     },
@@ -193,6 +256,8 @@ export function useCrudFactory<T extends BaseEntity>(
         updated = transform(updated);
       }
 
+      // Invalidate cache on update
+      invalidateCache(endpoint);
       setItems((prev) => prev.map((item) => (item.id === id ? updated : item)));
       return updated;
     },
@@ -212,6 +277,8 @@ export function useCrudFactory<T extends BaseEntity>(
         throw new Error(`Failed to delete ${entityName.toLowerCase()}`);
       }
 
+      // Invalidate cache on delete
+      invalidateCache(endpoint);
       setItems((prev) => prev.filter((item) => item.id !== id));
     },
     [endpoint, entityName]
@@ -237,11 +304,20 @@ export function useCrudFactory<T extends BaseEntity>(
 
   // ============== EFFECTS ==============
 
+  // Initial fetch effect - only runs once on mount
   useEffect(() => {
-    if (fetchOnMount) {
+    isMountedRef.current = true;
+
+    if (fetchOnMount && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
       fetchItems();
     }
-  }, [fetchItems, fetchOnMount]);
+
+    // Cleanup on unmount
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [fetchOnMount]); // Removed fetchItems - it's stable now and we use hasFetchedRef to control
 
   // ============== RETURN ==============
 

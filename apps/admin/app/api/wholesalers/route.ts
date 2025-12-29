@@ -7,7 +7,13 @@ export async function GET() {
     const wholesalers = await prisma.wholesaler.findMany({
       orderBy: { createdAt: "desc" },
     });
-    return NextResponse.json(wholesalers);
+
+    // Add cache headers for faster navigation
+    return NextResponse.json(wholesalers, {
+      headers: {
+        'Cache-Control': 'private, max-age=15, stale-while-revalidate=30',
+      },
+    });
   } catch (error) {
     console.error("Error fetching wholesalers:", error);
     return NextResponse.json(

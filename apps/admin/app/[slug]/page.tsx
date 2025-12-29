@@ -19,7 +19,7 @@ interface Category {
   id: string;
   name: string;
   logo: string | null;
-  productCount: number;
+  brandCount: number;
 }
 
 interface Brand {
@@ -99,11 +99,34 @@ export default function StorefrontHome() {
   const getWhatsAppLink = (product?: Product) => {
     if (!store?.whatsappNumber) return "#";
     const phone = store.whatsappNumber.replace(/\D/g, "");
+    const storeUrl = typeof window !== "undefined" ? window.location.origin : "";
+
     let message = `Hi, I'm interested in products from ${store.shopName}`;
     if (product) {
-      message = `Hi, I'm interested in:\n\n*${product.name}*\nSKU: ${product.sku}\nPrice: Rs. ${product.sellingPrice.toLocaleString()}\n\nPlease share more details.`;
+      const productUrl = `${storeUrl}/${slug}/product/${product.id}`;
+      const imageUrl = product.images?.[0] || "";
+      const isInStock = product.status === "in_stock";
+
+      message = `${isInStock ? "🛒 *Book Order*" : "❓ *Product Enquiry*"}\n\n`;
+      message += `*${product.name}*\n`;
+      message += `━━━━━━━━━━━━━━━\n`;
+      message += `📦 SKU: ${product.sku}\n`;
+      message += `🏷️ Brand: ${product.brand.name}\n`;
+      message += `📂 Category: ${product.category.name}\n`;
+      message += `💰 Price: ₹${product.sellingPrice.toLocaleString()}\n`;
+      if (product.mrp > product.sellingPrice) {
+        message += `🏷️ MRP: ₹${product.mrp.toLocaleString()} (${Math.round(((product.mrp - product.sellingPrice) / product.mrp) * 100)}% off)\n`;
+      }
+      message += `📊 Status: ${isInStock ? "✅ Available" : "⚠️ Out of Stock"}\n`;
+      message += `━━━━━━━━━━━━━━━\n\n`;
+      if (imageUrl) {
+        message += `🖼️ Product Image:\n${imageUrl}\n\n`;
+      }
+      message += `🔗 View Product:\n${productUrl}\n\n`;
+      message += `🏪 Store: @${slug}\n\n`;
+      message += isInStock ? `Please confirm availability and share payment details.` : `Please let me know when this product is back in stock.`;
     }
-    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    return `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
   };
 
   const formatPrice = (price: number) => {
@@ -223,7 +246,7 @@ export default function StorefrontHome() {
                       {category.name}
                     </h3>
                     <p className="text-sm text-neutral-500">
-                      {category.productCount} Products
+                      {category.brandCount} {category.brandCount === 1 ? "Brand" : "Brands"}
                     </p>
                   </div>
                 </Link>
@@ -289,13 +312,13 @@ export default function StorefrontHome() {
                   href={`/${slug}/products?brand=${brand.id}`}
                   className="group"
                 >
-                  <div className="relative aspect-square rounded-2xl overflow-hidden bg-white border border-neutral-200 group-hover:shadow-xl group-hover:border-amber-400 transition-all duration-300">
+                  <div className="relative aspect-square rounded-xl overflow-hidden bg-white border-2 border-neutral-200 group-hover:shadow-xl group-hover:border-amber-400 transition-all duration-300">
                     {brand.logo ? (
                       <Image
                         src={brand.logo}
                         alt={brand.name}
                         fill
-                        className="object-contain p-4 group-hover:scale-110 transition-transform duration-500"
+                        className="object-cover group-hover:scale-110 transition-transform duration-500"
                       />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-neutral-100 to-neutral-200">
@@ -402,11 +425,13 @@ function ProductCard({
   showNewBadge?: boolean;
 }) {
   const discount = calculateDiscount(product.mrp, product.sellingPrice);
+  const isInStock = product.status === "in_stock";
 
   return (
     <div className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300">
-      <Link href={`/${slug}/product/${product.id}`}>
-        <div className="relative aspect-square overflow-hidden">
+      {/* Image Container with Quick Action overlay */}
+      <div className="relative aspect-square overflow-hidden">
+        <Link href={`/${slug}/product/${product.id}`} className="block absolute inset-0">
           {product.images[0] ? (
             <Image
               src={product.images[0]}
@@ -419,41 +444,44 @@ function ProductCard({
               <span className="text-neutral-400">No Image</span>
             </div>
           )}
+        </Link>
 
-          {/* Badges */}
-          <div className="absolute top-3 left-3 flex flex-col gap-2">
-            {showNewBadge && product.isNewArrival && (
-              <span className="px-2.5 py-1 bg-blue-500 text-white text-xs font-medium rounded-full">
-                NEW
-              </span>
-            )}
-            {product.isBestSeller && (
-              <span className="px-2.5 py-1 bg-amber-500 text-white text-xs font-medium rounded-full">
-                BEST SELLER
-              </span>
-            )}
-            {discount > 0 && (
-              <span className="px-2.5 py-1 bg-red-500 text-white text-xs font-medium rounded-full">
-                -{discount}%
-              </span>
-            )}
-          </div>
-
-          {/* Quick Action */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-            <a
-              href={getWhatsAppLink(product)}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center justify-center gap-2 w-full py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium"
-            >
-              <FaWhatsapp className="w-4 h-4" />
-              Enquire Now
-            </a>
-          </div>
+        {/* Badges - Top Left */}
+        <div className="absolute top-3 left-3 flex flex-col gap-2 z-10 pointer-events-none">
+          {showNewBadge && product.isNewArrival && (
+            <span className="px-2.5 py-1 bg-blue-500 text-white text-xs font-medium rounded-full">
+              NEW
+            </span>
+          )}
+          {product.isBestSeller && (
+            <span className="px-2.5 py-1 bg-amber-500 text-white text-xs font-medium rounded-full">
+              BEST SELLER
+            </span>
+          )}
+          {discount > 0 && (
+            <span className="px-2.5 py-1 bg-red-500 text-white text-xs font-medium rounded-full">
+              -{discount}%
+            </span>
+          )}
         </div>
-      </Link>
+
+        {/* Quick Action - Separate from Link to avoid nested <a> tags */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          <a
+            href={getWhatsAppLink(product)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-lg transition-colors text-sm font-medium ${
+              isInStock
+                ? "bg-green-500 text-white hover:bg-green-600"
+                : "bg-orange-500 text-white hover:bg-orange-600"
+            }`}
+          >
+            <FaWhatsapp className="w-4 h-4" />
+            {isInStock ? "Book on WhatsApp" : "Enquire on WhatsApp"}
+          </a>
+        </div>
+      </div>
 
       <div className="p-4">
         <p className="text-xs text-amber-600 font-medium mb-1">
@@ -464,7 +492,27 @@ function ProductCard({
             {product.name}
           </h3>
         </Link>
-        <div className="mt-2 flex items-baseline gap-2">
+
+        {/* Stock Status Badge */}
+        <div className="mt-1.5 mb-2">
+          {isInStock ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              Available
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              Out of Stock
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-baseline gap-2">
           <span className="text-lg font-bold text-neutral-900">
             {formatPrice(product.sellingPrice)}
           </span>

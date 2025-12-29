@@ -3,15 +3,26 @@
 import { useParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   FaWhatsapp,
   FaInstagram,
   FaFacebookF,
   FaYoutube,
   FaTelegram,
+  FaShoppingCart,
+  FaTimes,
 } from "react-icons/fa";
 import { HiOutlineSearch, HiOutlineMenu, HiX } from "react-icons/hi";
+import SocialProofNotifications from "./components/SocialProofNotifications";
+import ExitIntentPopup from "./components/ExitIntentPopup";
+
+// Cart item interface
+interface CartItem {
+  productId: string;
+  quantity: number;
+  addedAt: string;
+}
 
 interface StoreData {
   id: string;
@@ -34,7 +45,7 @@ interface StoreData {
 interface Category {
   id: string;
   name: string;
-  productCount: number;
+  brandCount: number;
 }
 
 interface Brand {
@@ -42,6 +53,16 @@ interface Brand {
   name: string;
   slug: string;
   productCount: number;
+}
+
+interface CartProduct {
+  id: string;
+  name: string;
+  sku: string;
+  sellingPrice: number;
+  stockQuantity: number;
+  brand: { name: string };
+  images: string[];
 }
 
 export default function StorefrontLayout({
@@ -62,13 +83,31 @@ export default function StorefrontLayout({
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Cart state
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [cartProducts, setCartProducts] = useState<CartProduct[]>([]);
+
+  // All products for social proof notifications
+  const [allProducts, setAllProducts] = useState<{ id: string; name: string; category?: { name: string } }[]>([]);
+
+  // Toast notification state
+  const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: "", visible: false });
+
+  // Show toast message
+  const showToast = useCallback((message: string) => {
+    setToast({ message, visible: true });
+    setTimeout(() => setToast({ message: "", visible: false }), 3000);
+  }, []);
+
   useEffect(() => {
     const fetchStoreData = async () => {
       try {
-        const [storeRes, categoriesRes, brandsRes] = await Promise.all([
+        const [storeRes, categoriesRes, brandsRes, productsRes] = await Promise.all([
           fetch(`/api/store/${slug}`),
           fetch(`/api/store/${slug}/categories`),
           fetch(`/api/store/${slug}/brands`),
+          fetch(`/api/store/${slug}/products`),
         ]);
 
         if (!storeRes.ok) {
@@ -79,10 +118,12 @@ export default function StorefrontLayout({
         const storeData = await storeRes.json();
         const categoriesData = await categoriesRes.json();
         const brandsData = await brandsRes.json();
+        const productsData = await productsRes.json();
 
         setStore(storeData.store);
         setCategories(categoriesData.categories || []);
         setBrands(brandsData.brands || []);
+        setAllProducts(productsData.products || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load store");
       } finally {
@@ -95,6 +136,159 @@ export default function StorefrontLayout({
     }
   }, [slug]);
 
+  // Load cart from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedCart = localStorage.getItem(`cart_${slug}`);
+      if (savedCart) {
+        try {
+          setCart(JSON.parse(savedCart));
+        } catch (e) {
+          console.error("Failed to parse cart:", e);
+        }
+      }
+    }
+  }, [slug]);
+
+  // Listen for cart updates from products page (custom event for same-tab sync)
+  useEffect(() => {
+    const handleCartUpdate = (e: CustomEvent<{ slug: string; cart: CartItem[] }>) => {
+      if (e.detail.slug === slug) {
+        setCart(e.detail.cart);
+      }
+    };
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === `cart_${slug}` && e.newValue) {
+        try {
+          setCart(JSON.parse(e.newValue));
+        } catch (err) {
+          console.error("Failed to parse cart from storage event:", err);
+        }
+      }
+    };
+
+    window.addEventListener("cartUpdated", handleCartUpdate as EventListener);
+    window.addEventListener("storage", handleStorageChange);
+    return () => {
+      window.removeEventListener("cartUpdated", handleCartUpdate as EventListener);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, [slug]);
+
+  // Fetch product details when cart opens
+  useEffect(() => {
+    const fetchCartProducts = async () => {
+      if (!cartOpen || cart.length === 0) return;
+
+      const productIds = cart.map(item => item.productId);
+      try {
+        const res = await fetch(`/api/store/${slug}/products?ids=${productIds.join(",")}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCartProducts(data.products || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch cart products:", err);
+      }
+    };
+
+    fetchCartProducts();
+  }, [cartOpen, cart, slug]);
+
+  // Save cart to localStorage and dispatch event for sync
+  const saveCart = useCallback((newCart: CartItem[]) => {
+    setCart(newCart);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`cart_${slug}`, JSON.stringify(newCart));
+      // Dispatch custom event for same-tab sync
+      window.dispatchEvent(new CustomEvent("cartUpdated", {
+        detail: { slug, cart: newCart }
+      }));
+    }
+  }, [slug]);
+
+  // Cart handlers
+  const handleRemoveFromCart = useCallback((productId: string) => {
+    const newCart = cart.filter(item => item.productId !== productId);
+    saveCart(newCart);
+  }, [cart, saveCart]);
+
+  const updateCartQuantity = useCallback((productId: string, quantity: number) => {
+    if (quantity <= 0) {
+      handleRemoveFromCart(productId);
+    } else {
+      // Check stock before increasing quantity
+      const product = cartProducts.find(p => p.id === productId);
+      const currentItem = cart.find(item => item.productId === productId);
+      const currentQty = currentItem?.quantity || 0;
+      const maxQty = product?.stockQuantity || 0;
+
+      // Only check stock when increasing quantity
+      if (quantity > currentQty && quantity > maxQty) {
+        showToast("You cannot add more quantity of this product at the moment");
+        return;
+      }
+
+      const newCart = cart.map(item =>
+        item.productId === productId ? { ...item, quantity } : item
+      );
+      saveCart(newCart);
+    }
+  }, [cart, saveCart, handleRemoveFromCart, cartProducts, showToast]);
+
+  const clearCart = useCallback(() => {
+    saveCart([]);
+  }, [saveCart]);
+
+  // Cart calculations
+  const cartItems = cart.map(item => {
+    const product = cartProducts.find(p => p.id === item.productId);
+    return { ...item, product };
+  });
+
+  const cartTotal = cartItems.reduce((total, item) => {
+    return total + (item.product?.sellingPrice || 0) * item.quantity;
+  }, 0);
+
+  const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(price);
+  };
+
+  // Generate WhatsApp message for entire cart
+  const getCartWhatsAppLink = useCallback(() => {
+    if (!store?.whatsappNumber || cartItems.length === 0) return "#";
+    const phone = store.whatsappNumber.replace(/\D/g, "");
+    const storeUrl = typeof window !== "undefined" ? window.location.origin : "";
+
+    let message = `🛒 *Order Request*\n\n`;
+    message += `━━━━━━━━━━━━━━━\n`;
+
+    cartItems.forEach((item, index) => {
+      if (item.product) {
+        message += `${index + 1}. *${item.product.name}*\n`;
+        message += `   SKU: ${item.product.sku}\n`;
+        message += `   Qty: ${item.quantity} × ₹${item.product.sellingPrice.toLocaleString()}\n`;
+        message += `   Subtotal: ₹${(item.product.sellingPrice * item.quantity).toLocaleString()}\n\n`;
+      }
+    });
+
+    message += `━━━━━━━━━━━━━━━\n`;
+    message += `*Total: ₹${cartTotal.toLocaleString()}*\n`;
+    message += `*Items: ${cartItemCount}*\n\n`;
+    message += `🏪 Store: @${slug}\n`;
+    message += `🔗 ${storeUrl}/${slug}/products\n\n`;
+    message += `Please confirm availability and share payment details.`;
+
+    return `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
+  }, [store?.whatsappNumber, cartItems, cartTotal, cartItemCount, slug]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -105,7 +299,7 @@ export default function StorefrontLayout({
   const getWhatsAppLink = () => {
     if (!store?.whatsappNumber) return "#";
     const phone = store.whatsappNumber.replace(/\D/g, "");
-    return `https://wa.me/${phone}?text=Hi, I'm browsing your store at ${store.shopName}`;
+    return `https://api.whatsapp.com/send?phone=${phone}&text=Hi, I'm browsing your store at ${store.shopName}`;
   };
 
   if (loading) {
@@ -297,7 +491,7 @@ export default function StorefrontLayout({
                       >
                         <span>{category.name}</span>
                         <span className="text-xs text-neutral-400 ml-2">
-                          ({category.productCount})
+                          ({category.brandCount} {category.brandCount === 1 ? "brand" : "brands"})
                         </span>
                       </Link>
                     ))}
@@ -397,6 +591,24 @@ export default function StorefrontLayout({
                   <span className="font-medium">Chat Now</span>
                 </a>
               )}
+
+              {/* Cart Button - Always Visible */}
+              <button
+                onClick={() => setCartOpen(true)}
+                className={`hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors ${
+                  cartItemCount > 0
+                    ? "bg-amber-500 text-white hover:bg-amber-600"
+                    : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                }`}
+              >
+                <FaShoppingCart className="w-5 h-5" />
+                <span className="font-medium">Cart</span>
+                {cartItemCount > 0 && (
+                  <span className="bg-white text-amber-600 text-xs font-bold px-2 py-0.5 rounded-full min-w-[22px]">
+                    {cartItemCount}
+                  </span>
+                )}
+              </button>
 
               {/* Mobile Menu Toggle */}
               <button
@@ -653,6 +865,19 @@ export default function StorefrontLayout({
         </div>
       </footer>
 
+      {/* Social Proof Notifications */}
+      {allProducts.length > 0 && (
+        <SocialProofNotifications products={allProducts} />
+      )}
+
+      {/* Exit Intent Popup */}
+      <ExitIntentPopup
+        slug={slug}
+        cart={cart}
+        products={allProducts}
+        whatsappNumber={store?.whatsappNumber}
+      />
+
       {/* Floating WhatsApp Button */}
       {store?.whatsappNumber && (
         <a
@@ -663,6 +888,202 @@ export default function StorefrontLayout({
         >
           <FaWhatsapp className="w-7 h-7 text-white" />
         </a>
+      )}
+
+      {/* Mobile Cart Button - Always Visible */}
+      <button
+        onClick={() => setCartOpen(true)}
+        className={`sm:hidden fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all ${
+          cartItemCount > 0
+            ? "bg-amber-500 hover:bg-amber-600"
+            : "bg-neutral-200 hover:bg-neutral-300"
+        }`}
+      >
+        <FaShoppingCart className={`w-6 h-6 ${cartItemCount > 0 ? "text-white" : "text-neutral-600"}`} />
+        {cartItemCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-white text-amber-600 text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow">
+            {cartItemCount}
+          </span>
+        )}
+      </button>
+
+      {/* Cart Drawer */}
+      {cartOpen && (
+        <div className="fixed inset-0 z-[100]">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setCartOpen(false)}
+          />
+
+          {/* Cart Panel */}
+          <div className="absolute inset-y-0 right-0 w-full max-w-md bg-white shadow-xl flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-neutral-200">
+              <div className="flex items-center gap-3">
+                <FaShoppingCart className="w-5 h-5 text-amber-500" />
+                <h2 className="font-bold text-lg">Your Cart</h2>
+                <span className="bg-amber-100 text-amber-700 text-sm font-medium px-2 py-0.5 rounded-full">
+                  {cartItemCount} items
+                </span>
+              </div>
+              <button
+                onClick={() => setCartOpen(false)}
+                className="p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg"
+              >
+                <FaTimes className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Cart Items */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {cart.length === 0 ? (
+                <div className="text-center py-12">
+                  <FaShoppingCart className="w-16 h-16 mx-auto text-neutral-300 mb-4" />
+                  <p className="text-neutral-500">Your cart is empty</p>
+                  <Link
+                    href={`/${slug}/products`}
+                    onClick={() => setCartOpen(false)}
+                    className="inline-block mt-4 px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+                  >
+                    Browse Products
+                  </Link>
+                </div>
+              ) : cartProducts.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <p className="text-neutral-500">Loading cart items...</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {cartItems.map((item) => (
+                    <div
+                      key={item.productId}
+                      className="flex gap-3 p-3 bg-neutral-50 rounded-lg"
+                    >
+                      {/* Product Image */}
+                      <Link
+                        href={`/${slug}/product/${item.productId}`}
+                        className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden"
+                        onClick={() => setCartOpen(false)}
+                      >
+                        {item.product?.images[0] ? (
+                          <Image
+                            src={item.product.images[0]}
+                            alt={item.product.name}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-neutral-200 flex items-center justify-center">
+                            <span className="text-neutral-400 text-xs">No img</span>
+                          </div>
+                        )}
+                      </Link>
+
+                      {/* Product Details */}
+                      <div className="flex-1 min-w-0">
+                        <Link
+                          href={`/${slug}/product/${item.productId}`}
+                          onClick={() => setCartOpen(false)}
+                        >
+                          <h3 className="font-medium text-sm text-neutral-900 line-clamp-2 hover:text-amber-600">
+                            {item.product?.name || "Loading..."}
+                          </h3>
+                        </Link>
+                        <p className="text-xs text-neutral-500 mt-0.5">
+                          {item.product?.brand.name}
+                        </p>
+                        <p className="text-amber-600 font-semibold mt-1">
+                          {formatPrice(item.product?.sellingPrice || 0)}
+                        </p>
+
+                        {/* Quantity Controls */}
+                        <div className="flex items-center gap-2 mt-2">
+                          <button
+                            onClick={() => updateCartQuantity(item.productId, item.quantity - 1)}
+                            className="w-7 h-7 flex items-center justify-center bg-white border border-neutral-300 rounded-md hover:bg-neutral-100 text-neutral-700"
+                          >
+                            -
+                          </button>
+                          <span className="w-8 text-center font-medium text-sm">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() => updateCartQuantity(item.productId, item.quantity + 1)}
+                            className="w-7 h-7 flex items-center justify-center bg-white border border-neutral-300 rounded-md hover:bg-neutral-100 text-neutral-700"
+                          >
+                            +
+                          </button>
+                          <button
+                            onClick={() => handleRemoveFromCart(item.productId)}
+                            className="ml-auto p-1.5 text-red-500 hover:bg-red-50 rounded-md"
+                            title="Remove from cart"
+                          >
+                            <FaTimes className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer with Total and Actions */}
+            {cart.length > 0 && cartProducts.length > 0 && (
+              <div className="border-t border-neutral-200 p-4 space-y-3">
+                {/* Subtotal */}
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-600">Subtotal</span>
+                  <span className="text-xl font-bold text-neutral-900">
+                    {formatPrice(cartTotal)}
+                  </span>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col gap-2">
+                  <a
+                    href={getCartWhatsAppLink()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium"
+                  >
+                    <FaWhatsapp className="w-5 h-5" />
+                    Order on WhatsApp
+                  </a>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={clearCart}
+                      className="flex-1 py-2.5 border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50 transition-colors font-medium text-sm"
+                    >
+                      Clear Cart
+                    </button>
+                    <Link
+                      href={`/${slug}/products`}
+                      onClick={() => setCartOpen(false)}
+                      className="flex-1 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-medium text-sm text-center"
+                    >
+                      Continue Shopping
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast.visible && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[200] animate-fade-in">
+          <div className="bg-neutral-800 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+            <svg className="w-5 h-5 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span className="text-sm font-medium">{toast.message}</span>
+          </div>
+        </div>
       )}
     </div>
   );

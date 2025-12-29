@@ -7,7 +7,13 @@ export async function GET() {
     const retailers = await prisma.retailer.findMany({
       orderBy: { createdAt: "desc" },
     });
-    return NextResponse.json(retailers);
+
+    // Add cache headers for faster navigation
+    return NextResponse.json(retailers, {
+      headers: {
+        'Cache-Control': 'private, max-age=15, stale-while-revalidate=30',
+      },
+    });
   } catch (error) {
     console.error("Error fetching retailers:", error);
     return NextResponse.json(

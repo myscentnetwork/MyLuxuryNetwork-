@@ -45,27 +45,27 @@ function MarkupToolModal({
   const minSellingPrice = importedProduct.product.retailPrice;
   const mrp = importedProduct.product.mrp;
 
-  // Calculate FIXED minimum markup (non-editable base)
-  const minMarkupAmount = Math.max(0, minSellingPrice - costPrice);
-  const minMarkupPercentage = costPrice > 0 ? (minMarkupAmount / costPrice) * 100 : 0;
+  // Calculate profit margin (difference between minSellingPrice and costPrice)
+  const profitMargin = Math.max(0, minSellingPrice - costPrice);
+  const profitMarginPercentage = costPrice > 0 ? (profitMargin / costPrice) * 100 : 0;
 
-  // Calculate maximum ADDITIONAL markup allowed (on top of minimum)
+  // Calculate maximum ADDITIONAL markup allowed (on top of minimum selling price, up to MRP)
   const maxAdditionalAmount = mrp - minSellingPrice;
-  const maxAdditionalPercentage = costPrice > 0 ? (maxAdditionalAmount / costPrice) * 100 : 0;
+  const maxAdditionalPercentage = minSellingPrice > 0 ? (maxAdditionalAmount / minSellingPrice) * 100 : 0;
 
   // Ensure current price is never below minimum selling price
   const currentPrice = Math.max(importedProduct.sellingPrice || minSellingPrice, minSellingPrice);
 
-  // Calculate current ADDITIONAL markup (above minimum)
+  // Calculate current ADDITIONAL markup (above minimum selling price) - percentage is over minSellingPrice
   const currentAdditionalAmount = Math.max(0, currentPrice - minSellingPrice);
-  const currentAdditionalPercentage = costPrice > 0 ? (currentAdditionalAmount / costPrice) * 100 : 0;
+  const currentAdditionalPercentage = minSellingPrice > 0 ? (currentAdditionalAmount / minSellingPrice) * 100 : 0;
 
-  // Calculate current TOTAL markup (from cost price)
-  const currentMarkupAmount = currentPrice - costPrice;
-  const currentMarkupPercentage = costPrice > 0 ? (currentMarkupAmount / costPrice) * 100 : 0;
+  // Calculate current TOTAL profit (from cost price)
+  const currentTotalProfit = currentPrice - costPrice;
+  const currentTotalProfitPercentage = costPrice > 0 ? (currentTotalProfit / costPrice) * 100 : 0;
 
   const [markupType, setMarkupType] = useState<"percentage" | "fixed">("percentage");
-  // Additional markup starts at current additional or 0
+  // Additional markup starts at current additional or 0 - percentage is over minSellingPrice
   const [additionalMarkup, setAdditionalMarkup] = useState<string>(
     currentAdditionalPercentage > 0 ? currentAdditionalPercentage.toFixed(1) : "0"
   );
@@ -74,31 +74,33 @@ function MarkupToolModal({
   const handleMarkupTypeChange = (newType: "percentage" | "fixed") => {
     if (markupType === newType) return;
 
-    if (additionalMarkup && costPrice > 0) {
+    if (additionalMarkup && minSellingPrice > 0) {
       const currentVal = parseFloat(additionalMarkup) || 0;
       if (newType === "fixed") {
-        // Convert percentage to fixed amount
-        const fixedAmount = (costPrice * currentVal) / 100;
+        // Convert percentage to fixed amount (percentage was over minSellingPrice)
+        const fixedAmount = (minSellingPrice * currentVal) / 100;
         setAdditionalMarkup(fixedAmount.toFixed(0));
       } else {
-        // Convert fixed amount to percentage
-        const percentage = (currentVal / costPrice) * 100;
+        // Convert fixed amount to percentage (percentage is over minSellingPrice)
+        const percentage = (currentVal / minSellingPrice) * 100;
         setAdditionalMarkup(percentage.toFixed(1));
       }
     }
     setMarkupType(newType);
   };
 
-  // Calculate total selling price: Cost + Min Markup + Additional Markup
+  // Calculate total selling price: minSellingPrice + Additional Markup (markup is over minSellingPrice)
   const additionalAmount = additionalMarkup
     ? markupType === "percentage"
-      ? (costPrice * parseFloat(additionalMarkup || "0")) / 100
+      ? (minSellingPrice * parseFloat(additionalMarkup || "0")) / 100  // Percentage over minSellingPrice
       : parseFloat(additionalMarkup || "0")
     : 0;
 
   const calculatedPrice = minSellingPrice + additionalAmount;
-  const totalMarkupAmount = minMarkupAmount + additionalAmount;
-  const totalMarkupPercentage = costPrice > 0 ? (totalMarkupAmount / costPrice) * 100 : 0;
+  const totalProfit = calculatedPrice - costPrice;
+  const totalProfitPercentage = costPrice > 0 ? (totalProfit / costPrice) * 100 : 0;
+  const minMarkupAmount = minSellingPrice - costPrice; // Base markup from cost to minSellingPrice
+  const totalMarkupPercentage = totalProfitPercentage; // Alias for clarity
 
   const isAboveMRP = calculatedPrice > mrp;
   const isInvalidPrice = isAboveMRP;
@@ -211,11 +213,11 @@ function MarkupToolModal({
                   <span className="font-bold text-xl text-green-400">
                     {currentPrice > 0 ? formatPrice(currentPrice) : <span className="text-gray-500">Not Set</span>}
                   </span>
-                  {currentPrice > 0 && currentMarkupAmount > 0 && (
+                  {currentPrice > 0 && currentTotalProfit > 0 && (
                     <div className="text-sm mt-2 text-gray-400">
-                      Markup: <span className="text-yellow-400">{currentMarkupPercentage.toFixed(1)}%</span>
+                      Total Profit: <span className="text-green-400">{currentTotalProfitPercentage.toFixed(1)}%</span>
                       <span className="mx-1">|</span>
-                      <span className="text-yellow-400">{formatPrice(currentMarkupAmount)}</span>
+                      <span className="text-green-400">{formatPrice(currentTotalProfit)}</span>
                     </div>
                   )}
                 </div>
@@ -226,25 +228,25 @@ function MarkupToolModal({
             <div className="space-y-4">
               {/* Header */}
               <div className="text-center p-3 bg-luxury-gold/10 border border-luxury-gold/30 rounded-lg">
-                <span className="text-luxury-gold font-semibold text-sm">ADD MARKUP ON YOUR COST PRICE</span>
-                <p className="text-gray-400 text-xs mt-1">Cost: {formatPrice(costPrice)}</p>
+                <span className="text-luxury-gold font-semibold text-sm">ADD MARKUP ON MINIMUM SELLING PRICE</span>
+                <p className="text-gray-400 text-xs mt-1">Base: {formatPrice(minSellingPrice)}</p>
               </div>
 
-              {/* FIXED Base Markup (Non-editable) */}
+              {/* Profit Margin Info (Cost to Min Selling) */}
               <div className="p-4 bg-purple-500/10 border-2 border-purple-500/50 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-purple-400 font-semibold text-sm">BASE MARKUP (FIXED)</span>
+                  <span className="text-purple-400 font-semibold text-sm">YOUR BASE PROFIT</span>
                   <svg className="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                   </svg>
                 </div>
                 <div className="flex items-center justify-center gap-3">
-                  <span className="text-2xl font-bold text-purple-400">{minMarkupPercentage.toFixed(1)}%</span>
+                  <span className="text-2xl font-bold text-purple-400">{profitMarginPercentage.toFixed(1)}%</span>
                   <span className="text-gray-500">|</span>
-                  <span className="text-2xl font-bold text-purple-400">{formatPrice(minMarkupAmount)}</span>
+                  <span className="text-2xl font-bold text-purple-400">{formatPrice(profitMargin)}</span>
                 </div>
                 <p className="text-gray-500 text-xs text-center mt-2">
-                  Required to reach Min Selling Price ({formatPrice(minSellingPrice)})
+                  Min Selling ({formatPrice(minSellingPrice)}) - Cost ({formatPrice(costPrice)})
                 </p>
               </div>
 
@@ -358,12 +360,12 @@ function MarkupToolModal({
                 </div>
               </div>
 
-              {/* Total Markup Summary */}
+              {/* Total Profit Summary */}
               <div className="p-3 bg-luxury-gray/50 rounded-lg">
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-400">Total Markup:</span>
-                  <span className="text-luxury-gold font-semibold">
-                    {totalMarkupPercentage.toFixed(1)}% | {formatPrice(totalMarkupAmount)}
+                  <span className="text-gray-400">Total Profit (from Cost):</span>
+                  <span className="text-green-400 font-semibold">
+                    {totalProfitPercentage.toFixed(1)}% | {formatPrice(totalProfit)}
                   </span>
                 </div>
               </div>
@@ -1453,17 +1455,15 @@ export default function PortalStore() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-luxury-gray bg-luxury-gray/50">
-                      <th className="text-left px-4 py-3 text-sm font-medium text-gray-400">Image</th>
-                      <th className="text-left px-4 py-3 text-sm font-medium text-gray-400">Product Details</th>
-                      <th className="text-right px-4 py-3 text-sm font-medium text-orange-400">MRP</th>
-                      <th className="text-right px-4 py-3 text-sm font-medium text-gray-400">
-                        <span className={config.color}>Cost Price</span>
-                      </th>
-                      <th className="text-right px-4 py-3 text-sm font-medium text-purple-400">Min Selling Price</th>
-                      <th className="text-right px-4 py-3 text-sm font-medium text-luxury-gold">My Selling Price</th>
-                      <th className="text-right px-4 py-3 text-sm font-medium text-green-400">Your Profit</th>
-                      <th className="text-left px-4 py-3 text-sm font-medium text-gray-400">Status</th>
-                      <th className="text-left px-4 py-3 text-sm font-medium text-gray-400">Actions</th>
+                      <th className="text-center px-2 py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">IMAGE</th>
+                      <th className="text-left px-2 py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">PRODUCT</th>
+                      <th className="text-right px-2 py-3 text-[10px] font-medium text-orange-400 uppercase tracking-wider whitespace-nowrap">MAXIMUM RETAIL PRICE</th>
+                      <th className={`text-right px-2 py-3 text-[10px] font-medium uppercase tracking-wider whitespace-nowrap ${config.color}`}>COST PRICE</th>
+                      <th className="text-right px-2 py-3 text-[10px] font-medium text-purple-400 uppercase tracking-wider whitespace-nowrap">MINIMUM SELLING PRICE</th>
+                      <th className="text-right px-2 py-3 text-[10px] font-medium text-luxury-gold uppercase tracking-wider whitespace-nowrap">MY SELLING PRICE</th>
+                      <th className="text-right px-2 py-3 text-[10px] font-medium text-green-400 uppercase tracking-wider whitespace-nowrap">YOUR PROFIT</th>
+                      <th className="text-center px-2 py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">STATUS</th>
+                      <th className="text-center px-2 py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1485,8 +1485,8 @@ export default function PortalStore() {
                       return (
                         <tr key={item.id} className="border-b border-luxury-gray hover:bg-luxury-gray/30 transition-colors">
                           {/* Image */}
-                          <td className="px-4 py-3">
-                            <div className="relative w-16 h-16 bg-white rounded-lg overflow-hidden">
+                          <td className="px-2 py-2 text-center align-middle">
+                            <div className="relative w-12 h-12 bg-white rounded-lg overflow-hidden mx-auto">
                               {item.product.images && item.product.images[0] ? (
                                 <Image
                                   src={item.product.images[0]}
@@ -1496,7 +1496,7 @@ export default function PortalStore() {
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                                  <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                   </svg>
                                 </div>
@@ -1505,12 +1505,16 @@ export default function PortalStore() {
                           </td>
 
                           {/* Product Details */}
-                          <td className="px-4 py-3">
-                            <div className="space-y-1">
-                              <p className="text-white font-medium">{item.product.name || "-"}</p>
-                              <p className="text-gray-400 text-xs">{item.product.brandName} • {item.product.categoryName}</p>
+                          <td className="px-2 py-2 align-middle">
+                            <div className="flex flex-col gap-0.5">
+                              <p className="text-white font-medium text-sm leading-tight">{item.product.name || "-"}</p>
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-gray-400">{item.product.categoryName || "No Category"}</span>
+                                <span className="text-gray-600">•</span>
+                                <span className="text-gray-500">{item.product.brandName || "No Brand"}</span>
+                              </div>
                               {item.product.sku && (
-                                <span className="px-1.5 py-0.5 bg-gray-700 text-gray-300 text-xs font-mono rounded inline-block">
+                                <span className="px-1.5 py-0.5 bg-gray-700/50 text-luxury-gold text-[10px] font-mono rounded w-fit mt-0.5">
                                   {item.product.sku}
                                 </span>
                               )}
@@ -1518,121 +1522,127 @@ export default function PortalStore() {
                           </td>
 
                           {/* MRP */}
-                          <td className="px-4 py-3 text-right">
-                            <span className="text-orange-400 line-through text-sm">{formatPrice(item.product.mrp)}</span>
+                          <td className="px-2 py-2 text-right align-middle">
+                            <span className="text-orange-400 line-through text-sm">₹{item.product.mrp.toFixed(2)}</span>
                           </td>
 
                           {/* Cost Price */}
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex flex-col items-end">
-                              <span className={`${config.color} font-medium`}>{formatPrice(costPrice)}</span>
-                              <span className={`text-xs ${costDiscountAmount > 0 ? 'text-red-400' : 'text-gray-500'}`}>-{costDiscountPercent}% off</span>
-                            </div>
+                          <td className="px-2 py-2 text-right align-middle">
+                            <div className={`${config.color} font-medium text-sm`}>₹{costPrice.toFixed(2)}</div>
+                            {costDiscountAmount > 0 && (
+                              <div className="text-[10px] text-red-400/80">
+                                -{costDiscountPercent}% | ₹{costDiscountAmount.toFixed(2)}
+                              </div>
+                            )}
                           </td>
 
                           {/* Min Selling Price */}
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex flex-col items-end">
-                              <span className="text-purple-400">{formatPrice(retailPrice)}</span>
-                              <span className={`text-xs ${retailDiscountAmount > 0 ? 'text-red-400' : 'text-gray-500'}`}>-{retailDiscountPercent}% off</span>
-                            </div>
+                          <td className="px-2 py-2 text-right align-middle">
+                            <div className="text-purple-400 font-medium text-sm">₹{retailPrice.toFixed(2)}</div>
+                            {retailDiscountAmount > 0 && (
+                              <div className="text-[10px] text-red-400/80">
+                                -{retailDiscountPercent}% | ₹{retailDiscountAmount.toFixed(2)}
+                              </div>
+                            )}
                           </td>
 
                           {/* My Selling Price */}
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-end gap-2">
+                          <td className="px-2 py-2 text-right align-middle">
+                            <div className="flex items-center justify-end gap-0.5">
+                              <div className="text-luxury-gold font-medium text-sm">₹{sellingPrice.toFixed(2)}</div>
                               <button
                                 onClick={() => setMarkupProduct(item)}
-                                className="p-1.5 text-gray-400 hover:text-luxury-gold hover:bg-luxury-gray rounded transition-colors"
-                                title="Add Markup"
+                                className="p-0.5 text-gray-500 hover:text-luxury-gold rounded transition-colors"
+                                title="Set Markup"
                               >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                 </svg>
                               </button>
-                              <div className="flex flex-col items-end">
-                                <span className="text-luxury-gold font-semibold">{formatPrice(sellingPrice)}</span>
-                                <span className={`text-xs ${sellingDiscountAmount > 0 ? 'text-red-400' : 'text-gray-500'}`}>-{sellingDiscountPercent}% off</span>
-                              </div>
                             </div>
+                            {sellingDiscountAmount > 0 && (
+                              <div className="text-[10px] text-red-400/80">
+                                -{sellingDiscountPercent}% | ₹{sellingDiscountAmount.toFixed(2)}
+                              </div>
+                            )}
                           </td>
 
                           {/* Profit */}
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex flex-col items-end">
-                              <span className="text-green-400 font-semibold">{formatPrice(profit)}</span>
-                              <span className="text-xs text-green-400/70">({profitPercent}%)</span>
+                          <td className="px-2 py-2 text-right align-middle">
+                            <div className="text-green-400 font-medium text-sm">₹{profit.toFixed(2)}</div>
+                            <div className="text-[10px] text-green-400/60">
+                              +{profitPercent}%
                             </div>
                           </td>
 
                           {/* Status */}
-                          <td className="px-4 py-3">
-                            <div className="flex flex-col gap-1">
-                              <span className={`px-2 py-1 text-xs rounded-full inline-block w-fit ${
+                          <td className="px-2 py-2 text-center align-middle">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className={`px-2.5 py-1 text-[10px] rounded-full font-medium ${
                                 item.product.status === "in_stock"
                                   ? "bg-green-500/20 text-green-400"
                                   : "bg-red-500/20 text-red-400"
                               }`}>
-                                {item.product.status === "in_stock" ? "In Stock" : "Out of Stock"}
+                                {item.product.status === "in_stock" ? "IN STOCK" : "OUT OF STOCK"}
                               </span>
-                              <span className={`px-2 py-1 text-xs rounded-full inline-block w-fit ${
+                              <span className={`px-2.5 py-1 text-[10px] rounded-full font-medium ${
                                 item.isVisible
                                   ? "bg-blue-500/20 text-blue-400"
                                   : "bg-gray-500/20 text-gray-400"
                               }`}>
-                                {item.isVisible ? "Visible" : "Hidden"}
+                                {item.isVisible ? "VISIBLE" : "HIDDEN"}
                               </span>
                             </div>
                           </td>
 
                           {/* Actions */}
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-1">
+                          <td className="px-2 py-2 text-center align-middle">
+                            <div className="inline-flex items-center bg-luxury-gray/50 rounded-lg p-0.5">
                               <button
                                 onClick={() => setViewingProduct(item)}
-                                className="p-2 text-gray-400 hover:text-purple-400 hover:bg-luxury-gray rounded-lg transition-colors"
-                                title="View Details"
+                                className="p-1 text-gray-400 hover:text-purple-400 hover:bg-luxury-gray rounded transition-colors"
+                                title="View"
                               >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                 </svg>
                               </button>
                               <button
                                 onClick={() => setMarkupProduct(item)}
-                                className="p-2 text-luxury-gold hover:bg-luxury-gold/20 rounded-lg transition-colors"
+                                className="p-1 text-gray-400 hover:text-luxury-gold hover:bg-luxury-gray rounded transition-colors"
                                 title="Set Markup"
                               >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                               </button>
                               <button
                                 onClick={() => toggleVisibility(item)}
-                                className={`p-2 rounded-lg transition-colors ${
+                                className={`p-1 rounded transition-colors ${
                                   item.isVisible
-                                    ? "text-blue-400 hover:bg-blue-500/20"
-                                    : "text-gray-400 hover:bg-gray-500/20"
+                                    ? "text-blue-400 hover:bg-luxury-gray"
+                                    : "text-gray-400 hover:bg-luxury-gray"
                                 }`}
                                 title={item.isVisible ? "Hide" : "Show"}
                               >
                                 {item.isVisible ? (
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                   </svg>
                                 ) : (
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                                   </svg>
                                 )}
                               </button>
                               <button
                                 onClick={() => removeProduct(item)}
-                                className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                                className="p-1 text-gray-400 hover:text-red-400 hover:bg-luxury-gray rounded transition-colors"
                                 title="Remove"
                               >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                               </button>
@@ -1657,6 +1667,29 @@ export default function PortalStore() {
               <p className="text-gray-400">No products match your search &quot;{searchQuery}&quot;</p>
             </div>
           )}
+
+          {/* Summary Footer */}
+          <div className="bg-luxury-dark rounded-xl border border-luxury-gray p-4">
+            <div className="flex flex-wrap justify-between items-center gap-4">
+              <p className="text-gray-400 text-sm">
+                Showing {filteredProducts.length} of {importedProducts.length} products
+              </p>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <span className="text-gray-400">
+                  Visible: <span className="text-blue-400">{importedProducts.filter((p) => p.isVisible).length}</span>
+                </span>
+                <span className="text-gray-400">
+                  Hidden: <span className="text-gray-500">{importedProducts.filter((p) => !p.isVisible).length}</span>
+                </span>
+                <span className="text-gray-400">
+                  In Stock: <span className="text-green-400">{importedProducts.filter((p) => p.product.status === "in_stock").length}</span>
+                </span>
+                <span className="text-gray-400">
+                  Out of Stock: <span className="text-red-400">{importedProducts.filter((p) => p.product.status === "out_of_stock").length}</span>
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </PortalLayout>

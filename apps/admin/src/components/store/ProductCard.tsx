@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import React, { useMemo, useCallback } from "react";
 
 interface ProductCardProps {
   id: string;
@@ -17,7 +18,7 @@ interface ProductCardProps {
   isOutOfStock?: boolean;
 }
 
-export default function ProductCard({
+const ProductCard = React.memo(function ProductCard({
   id,
   name,
   sku,
@@ -31,29 +32,32 @@ export default function ProductCard({
   isFeatured,
   isOutOfStock,
 }: ProductCardProps) {
-  const formatPrice = (amount: number) => {
+  // Memoize price formatter
+  const formattedPrice = useMemo(() => {
+    if (!price) return null;
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
       maximumFractionDigits: 0,
-    }).format(amount);
-  };
+    }).format(price);
+  }, [price]);
 
-  // Generate WhatsApp enquiry URL
-  const whatsappMessage = encodeURIComponent(
-    `Hi! I'm interested in:\n\n*${name}*\nSKU: ${sku}${price ? `\nPrice: ${formatPrice(price)}` : ""}\n\nPlease share availability and details.`
-  );
-  const whatsappUrl = whatsappNumber
-    ? `https://wa.me/${whatsappNumber.replace(/\D/g, "")}?text=${whatsappMessage}`
-    : null;
+  // Memoize WhatsApp URL computation
+  const whatsappUrl = useMemo(() => {
+    if (!whatsappNumber) return null;
+    const whatsappMessage = encodeURIComponent(
+      `Hi! I'm interested in:\n\n*${name}*\nSKU: ${sku}${formattedPrice ? `\nPrice: ${formattedPrice}` : ""}\n\nPlease share availability and details.`
+    );
+    return `https://wa.me/${whatsappNumber.replace(/\D/g, "")}?text=${whatsappMessage}`;
+  }, [name, sku, formattedPrice, whatsappNumber]);
 
-  const handleEnquiry = (e: React.MouseEvent) => {
+  const handleEnquiry = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (whatsappUrl) {
       window.open(whatsappUrl, "_blank");
     }
-  };
+  }, [whatsappUrl]);
 
   return (
     <div className="group product-card bg-luxury-dark rounded-xl overflow-hidden border border-luxury-gray/30 hover:border-luxury-gold/50 transition-all">
@@ -122,10 +126,10 @@ export default function ProductCard({
         <p className="text-gray-500 text-xs mb-3">SKU: {sku}</p>
 
         {/* Price (if available) */}
-        {price && price > 0 && (
+        {price && price > 0 && formattedPrice && (
           <div className="mb-3">
             <span className="text-luxury-gold font-bold text-xl">
-              {formatPrice(price)}
+              {formattedPrice}
             </span>
           </div>
         )}
@@ -150,4 +154,6 @@ export default function ProductCard({
       </div>
     </div>
   );
-}
+});
+
+export default ProductCard;

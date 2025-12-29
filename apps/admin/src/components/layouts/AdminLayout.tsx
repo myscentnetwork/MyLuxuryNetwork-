@@ -442,24 +442,6 @@ export default function AdminLayout({ children, title, actions }: AdminLayoutPro
             Settings
           </Link>
 
-          {/* Divider */}
-          <div className="border-t border-luxury-gray my-4 mx-6"></div>
-
-          {/* Store Frontend */}
-          <a
-            href="http://localhost:3003"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center px-6 py-3 transition-colors text-gray-400 hover:text-white hover:bg-luxury-gray"
-          >
-            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            Store Frontend
-            <svg className="w-4 h-4 ml-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-          </a>
         </nav>
       </aside>
 
@@ -476,8 +458,10 @@ export default function AdminLayout({ children, title, actions }: AdminLayoutPro
               <button
                 onClick={() => {
                   document.cookie = "user_type=reseller; path=/";
-                  document.cookie = "user_id=cmjkgmfqr0001cuf7mob6c62i; path=/";
-                  window.location.href = "/portal/dashboard";
+                  document.cookie = "user_id=cmjmfeqve0001k0vkibi0fbhg; path=/";
+                  document.cookie = "user_username=zakhirastore; path=/";
+                  document.cookie = "user_name=Zakhira Store; path=/";
+                  window.location.href = "/portal/store";
                 }}
                 className="px-2 py-1 bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 text-xs rounded transition-colors"
               >
@@ -486,8 +470,10 @@ export default function AdminLayout({ children, title, actions }: AdminLayoutPro
               <button
                 onClick={() => {
                   document.cookie = "user_type=wholesaler; path=/";
-                  document.cookie = "user_id=cmjkgmfqd0000cuf7eatgpkw8; path=/";
-                  window.location.href = "/portal/dashboard";
+                  document.cookie = "user_id=cmjmev5z60000k0vk3k0ikeqi; path=/";
+                  document.cookie = "user_username=myscentnetwork; path=/";
+                  document.cookie = "user_name=My Scent Network; path=/";
+                  window.location.href = "/portal/store";
                 }}
                 className="px-2 py-1 bg-green-500/20 hover:bg-green-500/40 text-green-400 text-xs rounded transition-colors"
               >
@@ -496,12 +482,14 @@ export default function AdminLayout({ children, title, actions }: AdminLayoutPro
               <button
                 onClick={() => {
                   document.cookie = "user_type=retailer; path=/";
-                  document.cookie = "user_id=cmjkgmfr00002cuf746bgaqzm; path=/";
-                  window.location.href = "/portal/dashboard";
+                  document.cookie = "user_id=cmjmffgio0002k0vk7u39hth0; path=/";
+                  document.cookie = "user_username=navedkhan; path=/";
+                  document.cookie = "user_name=Naved Khan; path=/";
+                  window.location.href = "/portal/store";
                 }}
                 className="px-2 py-1 bg-orange-500/20 hover:bg-orange-500/40 text-orange-400 text-xs rounded transition-colors"
               >
-                Customer
+                Retailer
               </button>
             </div>
             <button
